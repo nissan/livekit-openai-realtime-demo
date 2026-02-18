@@ -1,0 +1,45 @@
+[project]
+name = "learning-voice-agent"
+version = "1.0.0"
+description = "Student-Assisted Learning Voice Agent — LiveKit Agents v1.4 worker"
+requires-python = ">=3.11"
+dependencies = [
+    # LiveKit Agents v1.4 + plugins
+    # See PLAN.md Critical Gotchas #1–2: v0.x APIs are deprecated
+    "livekit-agents~=1.4",
+    "livekit-plugins-openai~=1.4",
+    "livekit-plugins-anthropic~=1.4",
+    "livekit-plugins-silero~=1.4",
+
+    # LLM clients
+    "openai>=1.60.0",
+    "anthropic>=0.40.0",
+
+    # Supabase async client
+    # See PLAN.md Critical Gotchas #16: use acreate_client
+    "supabase>=2.2.0",
+
+    # OTEL for Langfuse observability (HTTP/protobuf — NOT gRPC)
+    # See PLAN.md Critical Gotchas #13
+    "opentelemetry-api>=1.24.0",
+    "opentelemetry-sdk>=1.24.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.24.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
