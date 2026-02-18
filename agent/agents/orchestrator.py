@@ -140,7 +140,7 @@ class OrchestratorAgent(GuardedAgent):
                     )
 
             return (
-                FallbackEnglishAgent(chat_ctx=context.session.chat_ctx),
+                FallbackEnglishAgent(chat_ctx=context.session.history),
                 "Let me connect you with our English tutor!"
             )
 
@@ -185,7 +185,7 @@ class OrchestratorAgent(GuardedAgent):
 
         logger.info("Routing to MathAgent [session=%s]", session_id)
         return (
-            MathAgent(chat_ctx=context.session.chat_ctx),
+            MathAgent(chat_ctx=context.session.history),
             "Let me connect you with our Mathematics tutor!"
         )
 
@@ -226,7 +226,7 @@ class OrchestratorAgent(GuardedAgent):
 
         logger.info("Routing to HistoryAgent [session=%s]", session_id)
         return (
-            HistoryAgent(chat_ctx=context.session.chat_ctx),
+            HistoryAgent(chat_ctx=context.session.history),
             "Let me connect you with our History tutor!"
         )
 

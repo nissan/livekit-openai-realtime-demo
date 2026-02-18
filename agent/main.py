@@ -63,6 +63,9 @@ async def pipeline_session_entrypoint(ctx: JobContext):
     Handles the "learning-orchestrator" dispatch.
     Creates the pipeline AgentSession and starts with OrchestratorAgent.
     """
+    # Must be called in each worker subprocess (not just __main__) so OTEL is configured
+    setup_langfuse_tracing()
+
     await ctx.connect()
 
     # Get student identity from the first participant (the student)
@@ -120,13 +123,15 @@ async def pipeline_session_entrypoint(ctx: JobContext):
     # Publish transcript turns to room data channel (topic: "transcript")
     # Frontend subscribes via useTranscript hook
     @session.on("conversation_item_added")
-    def on_conversation_item(item):
-        speaker = "student" if item.role == "user" else userdata.current_subject or "orchestrator"
-        role = item.role  # "user" | "assistant"
+    def on_conversation_item(event):
+        # v1.4: event is ConversationItemAddedEvent; event.item is the ChatMessage
+        msg = event.item
+        role = msg.role  # "user" | "assistant"
+        speaker = "student" if role == "user" else userdata.current_subject or "orchestrator"
 
         content = ""
-        if hasattr(item, "content"):
-            for part in item.content:
+        if hasattr(msg, "content"):
+            for part in msg.content:
                 if hasattr(part, "text") and part.text:
                     content += part.text
 
@@ -193,9 +198,10 @@ async def pipeline_session_entrypoint(ctx: JobContext):
     # Try to get full conversation history if available
     try:
         history = session.history
+        # v1.4: ChatContext is not iterable; use .messages() to get the list
         session_report["conversation_summary"] = [
-            {"role": item.role, "content": str(item.content)[:500]}
-            for item in history
+            {"role": msg.role, "content": str(msg.content)[:500]}
+            for msg in history.messages()
         ]
     except AttributeError:
         pass
@@ -220,6 +226,9 @@ async def english_session_entrypoint(ctx: JobContext):
     Handles the "learning-english" dispatch.
     Creates a Realtime AgentSession (OpenAI gpt-realtime) in the same room.
     """
+    # Must be called in each worker subprocess so OTEL is configured
+    setup_langfuse_tracing()
+
     await ctx.connect()
 
     participant = None
