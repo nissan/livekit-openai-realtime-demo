@@ -7,6 +7,10 @@ rtc:
   tcp_port: 7881
   # Set to false for macOS Docker Desktop local dev (see PLAN.md Critical Gotchas #14)
   use_external_ip: false
+  # Advertise 127.0.0.1 as ICE host so browser connects via Docker's port-forwarded UDP ports.
+  # Without this, LiveKit advertises its container-internal IP (172.17.x.x) which is unreachable
+  # from the host browser, causing "could not establish pc connection".
+  node_ip: 127.0.0.1
 
 redis:
   address: redis:6379
