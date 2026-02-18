@@ -1,0 +1,21 @@
+# Development override — adds hot-reload volume mounts
+# This file is automatically loaded by docker compose (no -f flag needed)
+version: "3.9"
+
+services:
+  agent:
+    volumes:
+      - ./agent:/app
+    command: python main.py dev
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NODE_ENV: development
+    command: npm run dev

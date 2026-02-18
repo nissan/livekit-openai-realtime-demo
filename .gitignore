@@ -1,0 +1,66 @@
+# Environment variables — never commit
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V00
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# LiveKit weights (downloaded at build time)
+agent/silero_vad/
+agent/*.onnx
+
+# Supabase local
+.supabase/
+supabase/.branches/
+supabase/.temp/

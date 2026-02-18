@@ -1,0 +1,25 @@
+# LiveKit self-hosted configuration
+# Pinned to v1.9.11 — do NOT use :latest (see PLAN.md Critical Gotchas #20)
+port: 7880
+rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+  tcp_port: 7881
+  # Set to false for macOS Docker Desktop local dev (see PLAN.md Critical Gotchas #14)
+  use_external_ip: false
+
+redis:
+  address: redis:6379
+
+keys:
+  # Set via env vars — these are placeholders replaced by docker-compose
+  devkey: devsecret
+
+logging:
+  json: false
+  level: info
+
+room:
+  # Enable agent dispatch
+  enable_remote_unmute: true
+  max_participants: 20
