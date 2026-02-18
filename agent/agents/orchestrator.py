@@ -84,6 +84,7 @@ class OrchestratorAgent(GuardedAgent):
         userdata = context.session.userdata
         session_id = userdata.session_id
         room_name = userdata.room_name
+        previous_subject = userdata.current_subject or ""
         turn_number = userdata.advance_turn()
         userdata.route_to("english")
 
@@ -92,6 +93,10 @@ class OrchestratorAgent(GuardedAgent):
             span.set_attribute("from_agent", "orchestrator")
             span.set_attribute("to_agent", "english")
             span.set_attribute("turn_number", turn_number)
+            span.set_attribute("question_summary", question_summary)
+            span.set_attribute("previous_subject", previous_subject)
+            span.set_attribute("langfuse.session_id", session_id)
+            span.set_attribute("langfuse.user_id", userdata.student_identity)
 
         # Log routing decision to Supabase
         import asyncio
@@ -155,6 +160,7 @@ class OrchestratorAgent(GuardedAgent):
         """
         userdata = context.session.userdata
         session_id = userdata.session_id
+        previous_subject = userdata.current_subject or ""
         turn_number = userdata.advance_turn()
         userdata.route_to("math")
 
@@ -163,6 +169,10 @@ class OrchestratorAgent(GuardedAgent):
             span.set_attribute("from_agent", "orchestrator")
             span.set_attribute("to_agent", "math")
             span.set_attribute("turn_number", turn_number)
+            span.set_attribute("question_summary", question_summary)
+            span.set_attribute("previous_subject", previous_subject)
+            span.set_attribute("langfuse.session_id", session_id)
+            span.set_attribute("langfuse.user_id", userdata.student_identity)
 
         import asyncio
         asyncio.create_task(transcript_store.save_routing_decision(
@@ -191,6 +201,7 @@ class OrchestratorAgent(GuardedAgent):
         """
         userdata = context.session.userdata
         session_id = userdata.session_id
+        previous_subject = userdata.current_subject or ""
         turn_number = userdata.advance_turn()
         userdata.route_to("history")
 
@@ -199,6 +210,10 @@ class OrchestratorAgent(GuardedAgent):
             span.set_attribute("from_agent", "orchestrator")
             span.set_attribute("to_agent", "history")
             span.set_attribute("turn_number", turn_number)
+            span.set_attribute("question_summary", question_summary)
+            span.set_attribute("previous_subject", previous_subject)
+            span.set_attribute("langfuse.session_id", session_id)
+            span.set_attribute("langfuse.user_id", userdata.student_identity)
 
         import asyncio
         asyncio.create_task(transcript_store.save_routing_decision(

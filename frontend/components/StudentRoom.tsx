@@ -25,6 +25,7 @@ import { SubjectBadge } from "./SubjectBadge";
 import { AgentStateIndicator } from "./AgentStateIndicator";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { EscalationBanner } from "./EscalationBanner";
+import { SuggestedQuestions } from "./SuggestedQuestions";
 import { useTranscript } from "@/hooks/useTranscript";
 
 interface StudentRoomProps {
@@ -58,6 +59,9 @@ function StudentRoomInner({ studentName }: { studentName: string }) {
 
       {/* Escalation banner (conditionally rendered) */}
       <EscalationBanner onTeacherJoined={() => setTeacherJoined(true)} />
+
+      {/* Suggested questions — auto-hides once conversation starts */}
+      <SuggestedQuestions visible={turns.length === 0} />
 
       {/* Transcript */}
       <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

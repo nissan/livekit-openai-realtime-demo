@@ -64,3 +64,42 @@ def setup_langfuse_tracing() -> TracerProvider | None:
 def get_tracer(name: str = "learning-agent"):
     """Get an OTEL tracer for manual span creation."""
     return trace.get_tracer(name)
+
+
+def set_session_span_attributes(
+    span,
+    session_id: str,
+    student_identity: str,
+) -> None:
+    """
+    Attach Langfuse session/user attributes to an OTEL span.
+
+    Langfuse indexes these automatically for filtering in the UI:
+      - langfuse.session_id → Session dimension
+      - langfuse.user_id    → User dimension
+    """
+    span.set_attribute("langfuse.session_id", session_id)
+    span.set_attribute("langfuse.user_id", student_identity)
+    span.set_attribute("session.id", session_id)
+    span.set_attribute("user.id", student_identity)
+
+
+def create_session_trace(
+    session_id: str,
+    student_identity: str,
+    room_name: str,
+) -> dict:
+    """
+    Return OTEL-compatible trace metadata dict for Langfuse session tracking.
+
+    Use as span attributes on the session root span:
+        span.set_attributes(create_session_trace(...))
+    """
+    return {
+        "langfuse.session_id": session_id,
+        "langfuse.user_id": student_identity,
+        "session.id": session_id,
+        "user.id": student_identity,
+        "room.name": room_name,
+        "service.name": "learning-voice-agent",
+    }

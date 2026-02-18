@@ -36,9 +36,10 @@ from agent.agents.orchestrator import OrchestratorAgent
 from agent.agents.english_agent import create_english_realtime_session
 from agent.models.session_state import SessionUserdata
 from agent.services import transcript_store
-from agent.services.langfuse_setup import setup_langfuse_tracing
+from agent.services.langfuse_setup import setup_langfuse_tracing, get_tracer
 
 logger = logging.getLogger(__name__)
+_tracer = None  # initialised after setup_langfuse_tracing() in __main__
 
 # -------------------------------------------------------------------
 # Worker startup — download model weights before first request
@@ -113,6 +114,9 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         max_endpointing_delay=2.0,   # cap long pauses
     )
 
+    # Tracer for conversation item spans
+    tracer = get_tracer("pipeline-session")
+
     # Publish transcript turns to room data channel (topic: "transcript")
     # Frontend subscribes via useTranscript hook
     @session.on("conversation_item_added")
@@ -127,6 +131,17 @@ async def pipeline_session_entrypoint(ctx: JobContext):
                     content += part.text
 
         if content:
+            # Emit OTEL span with session/user/subject context for Langfuse filtering
+            with tracer.start_as_current_span("conversation.item") as span:
+                span.set_attribute("student.name", userdata.student_identity)
+                span.set_attribute("session.id", userdata.session_id)
+                span.set_attribute("langfuse.session_id", userdata.session_id)
+                span.set_attribute("langfuse.user_id", userdata.student_identity)
+                span.set_attribute("user.id", userdata.student_identity)
+                span.set_attribute("subject_area", userdata.current_subject or "")
+                span.set_attribute("turn_number", userdata.turn_number)
+                span.set_attribute("role", role)
+
             # Publish to data channel for real-time frontend display
             payload = json.dumps({
                 "speaker": speaker,
