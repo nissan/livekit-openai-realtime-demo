@@ -19,6 +19,7 @@ import {
   VoiceAssistantControlBar,
   RoomAudioRenderer,
   useConnectionState,
+  useRemoteParticipants,
 } from "@livekit/components-react";
 import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles";
@@ -99,22 +100,35 @@ function StudentRoomInner({ studentName }: { studentName: string }) {
 }
 
 /**
- * Guards rendering of SessionProvider until room is fully connected.
- * SessionProvider in @livekit/components-react v2.9.19 crashes if rendered
- * before the room is connected (accesses session.room while session is undefined).
- * Must be rendered inside LiveKitRoom so useConnectionState() has room context.
+ * Guards rendering of SessionProvider until BOTH conditions are met:
+ *   1. Room WebSocket is ConnectionState.Connected
+ *   2. An agent participant (isAgent=true) has joined the room
+ *
+ * SessionProvider in @livekit/components-react v2.9.19 accesses session.room
+ * internally. This is undefined until an agent is present and its session is
+ * established — crashing even if the room itself is connected.
+ *
+ * Must be rendered inside LiveKitRoom so hooks have room context.
  */
 function ConnectionGuard({ children }: { children: React.ReactNode }) {
   const connectionState = useConnectionState();
-  if (connectionState !== ConnectionState.Connected) {
+  const remoteParticipants = useRemoteParticipants();
+  const agentReady = remoteParticipants.some((p) => p.isAgent);
+
+  const roomConnected = connectionState === ConnectionState.Connected;
+
+  if (!roomConnected || !agentReady) {
+    const message =
+      connectionState === ConnectionState.Reconnecting
+        ? "Reconnecting..."
+        : !roomConnected
+        ? "Connecting to your tutor..."
+        : "Waiting for your tutor to join...";
+
     return (
       <div className="flex flex-col h-full items-center justify-center gap-4">
         <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-500 text-sm">
-          {connectionState === ConnectionState.Reconnecting
-            ? "Reconnecting..."
-            : "Connecting to your tutor..."}
-        </p>
+        <p className="text-slate-500 text-sm">{message}</p>
       </div>
     );
   }
