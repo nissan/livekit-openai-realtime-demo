@@ -67,7 +67,7 @@ async def pipeline_session_entrypoint(ctx: JobContext):
 
     # Get student identity from the first participant (the student)
     participant = None
-    async for p in ctx.room.remote_participants.values():
+    for p in ctx.room.remote_participants.values():
         participant = p
         break
 
