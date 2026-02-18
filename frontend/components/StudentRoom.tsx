@@ -12,13 +12,15 @@
  */
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   LiveKitRoom,
   SessionProvider,
   VoiceAssistantControlBar,
   RoomAudioRenderer,
+  useConnectionState,
 } from "@livekit/components-react";
+import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles";
 
 import { SubjectBadge } from "./SubjectBadge";
@@ -96,6 +98,29 @@ function StudentRoomInner({ studentName }: { studentName: string }) {
   );
 }
 
+/**
+ * Guards rendering of SessionProvider until room is fully connected.
+ * SessionProvider in @livekit/components-react v2.9.19 crashes if rendered
+ * before the room is connected (accesses session.room while session is undefined).
+ * Must be rendered inside LiveKitRoom so useConnectionState() has room context.
+ */
+function ConnectionGuard({ children }: { children: React.ReactNode }) {
+  const connectionState = useConnectionState();
+  if (connectionState !== ConnectionState.Connected) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-4">
+        <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-500 text-sm">
+          {connectionState === ConnectionState.Reconnecting
+            ? "Reconnecting..."
+            : "Connecting to your tutor..."}
+        </p>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 export function StudentRoom({ token, livekitUrl, studentName }: StudentRoomProps) {
   return (
     <LiveKitRoom
@@ -109,10 +134,14 @@ export function StudentRoom({ token, livekitUrl, studentName }: StudentRoomProps
         console.log("Disconnected from room");
       }}
     >
-      {/* SessionProvider REQUIRED for useVoiceAssistant — Gotcha #9 */}
-      <SessionProvider>
-        <StudentRoomInner studentName={studentName} />
-      </SessionProvider>
+      {/* ConnectionGuard prevents SessionProvider from mounting before room connects.
+          SessionProvider requires session.room to exist — it's undefined pre-connect. */}
+      <ConnectionGuard>
+        {/* SessionProvider REQUIRED for useVoiceAssistant — Gotcha #9 */}
+        <SessionProvider>
+          <StudentRoomInner studentName={studentName} />
+        </SessionProvider>
+      </ConnectionGuard>
     </LiveKitRoom>
   );
 }
