@@ -18,4 +18,7 @@ services:
       - /app/.next
     environment:
       NODE_ENV: development
+      # Browser-side Supabase vars — must point to localhost so the browser can reach Kong
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.ix3Xvz1KYi-nF_GmVRJZ9F7Yam8CU_u2NzFKTQO9flo}
     command: npm run dev
