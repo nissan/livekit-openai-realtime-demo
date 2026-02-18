@@ -2,12 +2,12 @@
  * StudentRoom — main voice interaction component.
  *
  * CRITICAL: useVoiceAssistant (used inside AgentStateIndicator and useAgentState)
- * MUST be wrapped in AgentSessionProvider.
+ * MUST be wrapped in SessionProvider.
  * See PLAN.md Critical Gotchas #9.
  *
  * Architecture:
  *   LiveKitRoom (provides room context)
- *     └── AgentSessionProvider (provides agent state context)
+ *     └── SessionProvider (provides agent state context)
  *           └── StudentRoomInner (uses hooks that depend on both)
  */
 "use client";
@@ -15,7 +15,7 @@
 import { useState } from "react";
 import {
   LiveKitRoom,
-  AgentSessionProvider,
+  SessionProvider,
   VoiceAssistantControlBar,
   RoomAudioRenderer,
 } from "@livekit/components-react";
@@ -109,10 +109,10 @@ export function StudentRoom({ token, livekitUrl, studentName }: StudentRoomProps
         console.log("Disconnected from room");
       }}
     >
-      {/* AgentSessionProvider REQUIRED for useVoiceAssistant — Gotcha #9 */}
-      <AgentSessionProvider>
+      {/* SessionProvider REQUIRED for useVoiceAssistant — Gotcha #9 */}
+      <SessionProvider>
         <StudentRoomInner studentName={studentName} />
-      </AgentSessionProvider>
+      </SessionProvider>
     </LiveKitRoom>
   );
 }
