@@ -67,7 +67,9 @@ test.describe("Demo walkthrough /demo", () => {
   });
 
   test("Langfuse analysis section is visible", async ({ page }) => {
-    await expect(page.getByText(/langfuse/i)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /langfuse/i })
+    ).toBeVisible();
   });
 
   test("reset progress button clears checkboxes", async ({ page }) => {

@@ -1,6 +1,5 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   // Standalone output for Docker containerisation
   // Produces a self-contained build that doesn't require node_modules at runtime
   output: "standalone",

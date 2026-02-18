@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LiveKit components styles — required peer dep */
-@import "@livekit/components-styles";
 
 :root {
   --foreground-rgb: 15, 23, 42;

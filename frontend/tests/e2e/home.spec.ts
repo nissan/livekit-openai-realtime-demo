@@ -16,21 +16,24 @@ test.describe("Home page", () => {
   });
 
   test("Start Learning navigates to /student with name", async ({ page }) => {
+    // Default role is student, so button already reads "Start Learning →"
     await page.getByRole("textbox").fill("Alex");
     await page.getByRole("button", { name: /start learning/i }).click();
     await expect(page).toHaveURL(/\/student\?name=Alex/);
   });
 
   test("Monitor Sessions navigates to /teacher with name", async ({ page }) => {
+    // Must switch to teacher role first — button label is role-dependent
+    await page.getByRole("button", { name: /teacher/i }).click();
     await page.getByRole("textbox").fill("Ms Jones");
     await page.getByRole("button", { name: /monitor sessions/i }).click();
     await expect(page).toHaveURL(/\/teacher\?name=Ms(\+|%20)Jones/);
   });
 
-  test("empty name does not crash on navigation attempt", async ({ page }) => {
-    // Either shows validation or navigates gracefully (no 500 error)
-    await page.getByRole("button", { name: /start learning/i }).click();
-    // Page should still be responsive — not a crash
-    await expect(page).not.toHaveURL(/error/);
+  test("Start button is disabled when name is empty", async ({ page }) => {
+    // Button is disabled when name is blank (disabled={!name.trim()})
+    await expect(
+      page.getByRole("button", { name: /start learning/i })
+    ).toBeDisabled();
   });
 });
