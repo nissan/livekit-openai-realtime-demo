@@ -1,27 +1,29 @@
 /**
  * StudentRoom — main voice interaction component.
  *
- * CRITICAL: useVoiceAssistant (used inside AgentStateIndicator and useAgentState)
- * MUST be wrapped in SessionProvider.
- * See PLAN.md Critical Gotchas #9.
- *
  * Architecture:
- *   LiveKitRoom (provides room context)
- *     └── SessionProvider (provides agent state context)
- *           └── StudentRoomInner (uses hooks that depend on both)
+ *   LiveKitRoom (provides RoomContext + RoomAudioRenderer)
+ *     └── ConnectionGuard (waits for Connected + agent participant)
+ *           └── StudentRoomInner (uses hooks that depend on room context)
+ *
+ * NOTE: SessionProvider from @livekit/components-react v2.9.19 crashes on
+ * session.room access before the agent voice pipeline is ready — even after
+ * the agent participant joins. We bypass it entirely; useVoiceAssistant()
+ * reads from RoomContext (provided by LiveKitRoom) directly.
+ * VoiceAssistantControlBar is also replaced with TrackToggle for the same
+ * reason (it internally calls useVoiceAssistant which was gated behind SessionProvider).
  */
 "use client";
 
 import React, { useState } from "react";
 import {
   LiveKitRoom,
-  SessionProvider,
-  VoiceAssistantControlBar,
   RoomAudioRenderer,
   useConnectionState,
-  useRemoteParticipants,
+  useAudioPlayback,
+  TrackToggle,
 } from "@livekit/components-react";
-import { ConnectionState } from "livekit-client";
+import { ConnectionState, Track } from "livekit-client";
 import "@livekit/components-styles";
 
 import { SubjectBadge } from "./SubjectBadge";
@@ -40,6 +42,7 @@ interface StudentRoomProps {
 function StudentRoomInner({ studentName }: { studentName: string }) {
   const [teacherJoined, setTeacherJoined] = useState(false);
   const turns = useTranscript();
+  const { canPlayAudio, startAudio } = useAudioPlayback();
 
   // Derive current subject from latest assistant turn
   const latestSubject =
@@ -47,6 +50,16 @@ function StudentRoomInner({ studentName }: { studentName: string }) {
 
   return (
     <div className="flex flex-col h-full gap-4">
+      {/* Audio enable banner — Chrome blocks AudioContext until user gesture */}
+      {!canPlayAudio && (
+        <button
+          onClick={startAudio}
+          className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-xl px-4 py-3 flex items-center justify-center gap-2 transition-colors"
+        >
+          🔊 Tap here to enable tutor audio
+        </button>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex items-center justify-between">
         <div>
@@ -89,8 +102,8 @@ function StudentRoomInner({ studentName }: { studentName: string }) {
             </span>
           )}
         </div>
-        {/* LiveKit microphone + mute controls */}
-        <VoiceAssistantControlBar />
+        {/* Microphone toggle — TrackToggle works from RoomContext alone */}
+        <TrackToggle source={Track.Source.Microphone} className="lk-button" />
       </div>
 
       {/* Render remote audio (agent voice) */}
@@ -100,35 +113,21 @@ function StudentRoomInner({ studentName }: { studentName: string }) {
 }
 
 /**
- * Guards rendering of SessionProvider until BOTH conditions are met:
- *   1. Room WebSocket is ConnectionState.Connected
- *   2. An agent participant (isAgent=true) has joined the room
- *
- * SessionProvider in @livekit/components-react v2.9.19 accesses session.room
- * internally. This is undefined until an agent is present and its session is
- * established — crashing even if the room itself is connected.
- *
- * Must be rendered inside LiveKitRoom so hooks have room context.
+ * Guards rendering until the LiveKit room is fully connected.
+ * Must be inside LiveKitRoom so useConnectionState() has room context.
  */
 function ConnectionGuard({ children }: { children: React.ReactNode }) {
   const connectionState = useConnectionState();
-  const remoteParticipants = useRemoteParticipants();
-  const agentReady = remoteParticipants.some((p) => p.isAgent);
 
-  const roomConnected = connectionState === ConnectionState.Connected;
-
-  if (!roomConnected || !agentReady) {
-    const message =
-      connectionState === ConnectionState.Reconnecting
-        ? "Reconnecting..."
-        : !roomConnected
-        ? "Connecting to your tutor..."
-        : "Waiting for your tutor to join...";
-
+  if (connectionState !== ConnectionState.Connected) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-4">
         <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-500 text-sm">{message}</p>
+        <p className="text-slate-500 text-sm">
+          {connectionState === ConnectionState.Reconnecting
+            ? "Reconnecting..."
+            : "Connecting to your tutor..."}
+        </p>
       </div>
     );
   }
@@ -148,13 +147,8 @@ export function StudentRoom({ token, livekitUrl, studentName }: StudentRoomProps
         console.log("Disconnected from room");
       }}
     >
-      {/* ConnectionGuard prevents SessionProvider from mounting before room connects.
-          SessionProvider requires session.room to exist — it's undefined pre-connect. */}
       <ConnectionGuard>
-        {/* SessionProvider REQUIRED for useVoiceAssistant — Gotcha #9 */}
-        <SessionProvider>
-          <StudentRoomInner studentName={studentName} />
-        </SessionProvider>
+        <StudentRoomInner studentName={studentName} />
       </ConnectionGuard>
     </LiveKitRoom>
   );

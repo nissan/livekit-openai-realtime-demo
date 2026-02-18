@@ -174,8 +174,10 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         room=ctx.room,
     )
 
-    # Wait for session to complete
-    await session.wait()
+    # Wait for session to complete — v1.4 has no session.wait(); use close event
+    session_closed = asyncio.Event()
+    session.on("close", lambda _: session_closed.set())
+    await session_closed.wait()
 
     # Save session report on close
     session_report = {
@@ -260,7 +262,9 @@ async def english_session_entrypoint(ctx: JobContext):
         session_userdata=userdata,
     )
 
-    await session.wait()
+    session_closed = asyncio.Event()
+    session.on("close", lambda _: session_closed.set())
+    await session_closed.wait()
 
     logger.info(
         "English Realtime session ended [session=%s]",

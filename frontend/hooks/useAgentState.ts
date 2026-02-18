@@ -1,8 +1,8 @@
 /**
  * useAgentState — wraps useVoiceAssistant from @livekit/components-react.
  *
- * IMPORTANT: useVoiceAssistant MUST be used inside AgentSessionProvider.
- * See PLAN.md Critical Gotchas #9.
+ * NOTE: useVoiceAssistant reads from RoomContext (provided by LiveKitRoom)
+ * via useRemoteParticipants/useTracks — does NOT require SessionProvider.
  *
  * AgentState values: "initializing" | "listening" | "thinking" | "speaking"
  */

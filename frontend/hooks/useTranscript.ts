@@ -32,8 +32,8 @@ export function useTranscript(): TranscriptTurn[] {
 
     function onDataReceived(
       payload: Uint8Array,
-      _participant: unknown,
-      _kind: DataPacket_Kind,
+      _participant?: unknown,
+      _kind?: DataPacket_Kind,
       topic?: string
     ) {
       if (topic !== "transcript") return;
