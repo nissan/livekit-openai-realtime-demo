@@ -3,12 +3,17 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { TeacherRoom } from "@/components/TeacherRoom";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function TeacherPageContent() {
   const searchParams = useSearchParams();
   const name = searchParams.get("name") ?? "Teacher";
 
-  return <TeacherRoom teacherName={name} />;
+  return (
+    <ErrorBoundary context="teacher-room">
+      <TeacherRoom teacherName={name} />
+    </ErrorBoundary>
+  );
 }
 
 export default function TeacherPage() {

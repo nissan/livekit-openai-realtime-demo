@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { StudentRoom } from "@/components/StudentRoom";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 interface TokenResponse {
   token: string;
@@ -14,14 +15,17 @@ interface TokenResponse {
 function StudentPageContent() {
   const searchParams = useSearchParams();
   const name = searchParams.get("name") ?? "Student";
-  const identity = `student-${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+
+  // Stable identity + roomName: computed once on mount, never changes across re-renders
+  const [identity] = useState(
+    () => `student-${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`
+  );
+  const [roomName] = useState(() => `session-${Date.now()}`);
 
   const [tokenData, setTokenData] = useState<TokenResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const roomName = `session-${Date.now()}`;
-
     fetch(
       `/api/token?identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(name)}&role=student&room=${encodeURIComponent(roomName)}`
     )
@@ -31,7 +35,7 @@ function StudentPageContent() {
       })
       .then(setTokenData)
       .catch((err) => setError(err.message));
-  }, [identity, name]);
+  }, [identity, name, roomName]);
 
   if (error) {
     return (
@@ -65,11 +69,13 @@ function StudentPageContent() {
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-2xl mx-auto h-[calc(100vh-4rem)] flex flex-col">
-        <StudentRoom
-          token={tokenData.token}
-          livekitUrl={tokenData.livekitUrl}
-          studentName={name}
-        />
+        <ErrorBoundary context="student-room">
+          <StudentRoom
+            token={tokenData.token}
+            livekitUrl={tokenData.livekitUrl}
+            studentName={name}
+          />
+        </ErrorBoundary>
       </div>
     </div>
   );
