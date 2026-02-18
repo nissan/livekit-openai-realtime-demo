@@ -168,10 +168,10 @@ async def pipeline_session_entrypoint(ctx: JobContext):
             ))
 
     # Start session with OrchestratorAgent
+    # v1.4 API: agent is first positional arg; participant is not accepted
     await session.start(
+        OrchestratorAgent(),
         room=ctx.room,
-        participant=participant,
-        agent=OrchestratorAgent(),
     )
 
     # Wait for session to complete

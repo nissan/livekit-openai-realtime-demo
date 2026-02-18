@@ -176,5 +176,5 @@ async def create_english_realtime_session(
                         action_taken="audit_only",
                     ))
 
-    await session.start(room=room, participant=participant, agent=agent)
+    await session.start(agent, room=room)
     return session
