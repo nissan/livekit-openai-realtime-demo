@@ -37,7 +37,7 @@ import logging
 import os
 from typing import Optional
 
-from livekit.agents import AgentSession, function_tool
+from livekit.agents import AgentSession, RunContext, function_tool
 from livekit.plugins import openai
 from livekit.plugins.openai import realtime
 from livekit.plugins.openai.realtime.realtime_model import InputAudioTranscription
@@ -109,7 +109,7 @@ class EnglishAgent(GuardedAgent):
     )
     async def route_back_to_orchestrator(
         self,
-        context,
+        context: RunContext,
         reason: str,
     ) -> str:
         """

@@ -180,18 +180,36 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
 
         # Close this pipeline session so it cannot compete with the English Realtime
         # session (same room, both sessions receive student audio via STT).
-        # Brief delay lets the transition TTS message finish playing first.
+        # FIXED (PLAN14): replaced fixed 12s timer with event-driven close.
+        # Wait for the transition speech to be committed (conversation_item_added),
+        # then add 5s to let the audio buffer drain before closing.
+        # A 30s fallback fires if the event never arrives (e.g. crash before commit).
         pipeline_session = context.session
+        _close_done = asyncio.Event()
 
-        async def _close_pipeline_after_english_dispatch():
-            await asyncio.sleep(12.0)
+        async def _do_close_pipeline():
+            if _close_done.is_set():
+                return
+            _close_done.set()
+            await asyncio.sleep(5.0)  # drain WebRTC audio buffer
             try:
                 await pipeline_session.aclose()
                 logger.info("Pipeline session closed after English dispatch [session=%s]", session_id)
             except Exception:
                 logger.exception("Failed to close pipeline session after English routing")
 
-        asyncio.create_task(_close_pipeline_after_english_dispatch())
+        def _on_transition_committed(item):
+            if getattr(item, "role", None) == "assistant":
+                asyncio.create_task(_do_close_pipeline())
+                pipeline_session.off("conversation_item_added", _on_transition_committed)
+
+        pipeline_session.on("conversation_item_added", _on_transition_committed)
+
+        async def _fallback_close_pipeline():
+            await asyncio.sleep(30.0)
+            await _do_close_pipeline()
+
+        asyncio.create_task(_fallback_close_pipeline())
 
     except Exception:
         logger.exception("Failed to dispatch English worker — falling back to pipeline English")
