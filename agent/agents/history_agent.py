@@ -50,9 +50,11 @@ When you have fully answered the student's question (including any immediate
 follow-up clarifications on the same history topic), call
 route_back_to_orchestrator to return control to the main tutor.
 
-If the student asks about mathematics, English, or anything outside history,
-do NOT attempt to answer. Acknowledge briefly and call route_back_to_orchestrator
-so the main tutor can route to the correct specialist.
+If the student asks about mathematics, English, or ANYTHING outside history:
+do NOT explain or describe the off-topic topic at all.
+Say exactly one brief sentence like 'That sounds like a maths question — let me pass you to the right tutor!'
+then IMMEDIATELY call route_back_to_orchestrator.
+Do not provide any information about the off-topic subject.
 """
 
 # Default to gpt-5.2 — update via env var without code changes

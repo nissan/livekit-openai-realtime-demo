@@ -61,6 +61,7 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
     previous_subject = userdata.current_subject or ""
     turn_number = userdata.advance_turn()
     userdata.route_to("math")
+    userdata.speaking_agent = "math"   # set before drain-phase response fires (PLAN10)
 
     with tracer.start_as_current_span("routing.decision") as span:
         span.set_attribute("session_id", session_id)
@@ -98,6 +99,7 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
     previous_subject = userdata.current_subject or ""
     turn_number = userdata.advance_turn()
     userdata.route_to("history")
+    userdata.speaking_agent = "history"   # set before drain-phase response fires (PLAN10)
 
     with tracer.start_as_current_span("routing.decision") as span:
         span.set_attribute("session_id", session_id)
@@ -226,6 +228,7 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
     previous_subject = userdata.current_subject or ""   # capture BEFORE route_to()
     turn_number = userdata.advance_turn()
     userdata.route_to("orchestrator")
+    userdata.speaking_agent = "orchestrator"   # set before drain-phase response fires (PLAN10)
 
     with tracer.start_as_current_span("routing.decision") as span:
         span.set_attribute("session_id", session_id)
