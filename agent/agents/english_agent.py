@@ -40,6 +40,7 @@ from typing import Optional
 from livekit.agents import AgentSession, RoomInputOptions, function_tool
 from livekit.plugins import openai
 from livekit.plugins.openai import realtime
+from livekit.plugins.openai.realtime.realtime_model import InputAudioTranscription
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from agent.agents.base import GuardedAgent
@@ -175,7 +176,7 @@ async def create_english_realtime_session(
             voice="shimmer",
             instructions=ENGLISH_SYSTEM_PROMPT,
             modalities=["audio", "text"],
-            input_audio_transcription=realtime.InputAudioTranscription(
+            input_audio_transcription=InputAudioTranscription(
                 model="gpt-4o-mini-transcribe",
             ),
         ),

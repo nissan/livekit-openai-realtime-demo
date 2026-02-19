@@ -61,7 +61,10 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
     previous_subject = userdata.current_subject or ""
     turn_number = userdata.advance_turn()
     userdata.route_to("math")
-    userdata.speaking_agent = "math"   # set before drain-phase response fires (PLAN10)
+    # NOTE: do NOT set speaking_agent here — the orchestrator's transition message
+    # ("Let me connect you with our Mathematics tutor!") fires AFTER this point and
+    # must be attributed to the orchestrator, not math. speaking_agent is set in
+    # GuardedAgent.on_enter() which fires AFTER the transition message. (PLAN10 fix revert)
 
     with tracer.start_as_current_span("routing.decision") as span:
         span.set_attribute("session_id", session_id)
@@ -99,7 +102,8 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
     previous_subject = userdata.current_subject or ""
     turn_number = userdata.advance_turn()
     userdata.route_to("history")
-    userdata.speaking_agent = "history"   # set before drain-phase response fires (PLAN10)
+    # NOTE: do NOT set speaking_agent here — same reason as _route_to_math_impl above.
+    # The transition message is spoken by the current agent and must keep its attribution.
 
     with tracer.start_as_current_span("routing.decision") as span:
         span.set_attribute("session_id", session_id)
@@ -228,7 +232,7 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
     previous_subject = userdata.current_subject or ""   # capture BEFORE route_to()
     turn_number = userdata.advance_turn()
     userdata.route_to("orchestrator")
-    userdata.speaking_agent = "orchestrator"   # set before drain-phase response fires (PLAN10)
+    # NOTE: do NOT set speaking_agent here — same reason as _route_to_math_impl above.
 
     with tracer.start_as_current_span("routing.decision") as span:
         span.set_attribute("session_id", session_id)

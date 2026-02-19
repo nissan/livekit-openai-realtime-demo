@@ -1,12 +1,15 @@
 """
-Tests that routing functions set speaking_agent proactively (PLAN10).
+Tests that routing functions do NOT change speaking_agent (PLAN10 revert).
 
-Bug: speaking_agent was only set in on_enter(), which fires AFTER the drain-phase
-response. So the math tutor's FIRST response showed as "orchestrator" in the
-transcript because speaking_agent still held the old agent name.
+PLAN10 originally added proactive speaking_agent setting inside routing functions,
+which caused a regression: the orchestrator's transition message ("Let me connect
+you with our Mathematics tutor!") fired AFTER the routing function set speaking_agent
+to "math", so the transition message was mislabelled as "Math Tutor" in the transcript.
 
-Fix: Set speaking_agent in each _route_to_*_impl() immediately after route_to(),
-so drain-phase responses are correctly attributed from the first token.
+Correct behaviour: speaking_agent is set ONLY in GuardedAgent.on_enter(), which fires
+AFTER the transition message has been committed to history. The routing function must
+leave speaking_agent unchanged so the transition message is attributed to the correct
+outgoing agent.
 """
 import asyncio
 import pytest
@@ -26,29 +29,33 @@ def _make_mock_context(userdata):
     return mock_context
 
 
-class TestRoutingSetsSpeakingAgent:
+class TestRoutingDoesNotChangeSpeakingAgent:
     """
-    Verify routing functions set userdata.speaking_agent proactively — immediately
-    after route_to(), before on_enter() can fire.
+    Verify routing functions leave userdata.speaking_agent UNCHANGED.
+
+    The transition message ("Let me connect you with our Mathematics tutor!") is
+    spoken by the outgoing agent AFTER the routing function returns. If we set
+    speaking_agent="math" inside the routing function, the transition message gets
+    mislabelled as "Math Tutor" in the transcript — a regression introduced by
+    the original PLAN10 implementation that was later reverted.
     """
 
     @pytest.mark.asyncio
-    async def test_route_to_math_sets_speaking_agent(self):
+    async def test_route_to_math_leaves_speaking_agent_unchanged(self):
         """
-        _route_to_math_impl must set userdata.speaking_agent = "math" right after
-        calling route_to("math"), not wait for MathAgent.on_enter().
+        _route_to_math_impl must NOT modify userdata.speaking_agent.
+        The transition message is still spoken by the orchestrator after this call.
         """
         from agent.models.session_state import SessionUserdata
         from agent.tools.routing import _route_to_math_impl
 
         userdata = SessionUserdata(student_identity="alice", room_name="room-1")
-        userdata.speaking_agent = "orchestrator"   # simulates prior orchestrator turn
+        userdata.speaking_agent = "orchestrator"   # set by orchestrator.on_enter
 
         mock_context = _make_mock_context(userdata)
         mock_agent = MagicMock()
         mock_agent.agent_name = "orchestrator"
 
-        # Patch the tracer span and transcript save to avoid side effects
         import agent.tools.routing as routing_module
         mock_tracer = MagicMock()
         mock_span = MagicMock()
@@ -61,19 +68,21 @@ class TestRoutingSetsSpeakingAgent:
              patch.object(routing_module.transcript_store, "save_routing_decision", AsyncMock()):
             result = await _route_to_math_impl(mock_agent, mock_context, "7 times 8")
 
-        # speaking_agent must be "math" immediately — before on_enter() runs
-        assert userdata.speaking_agent == "math", (
-            f"Expected speaking_agent='math' immediately after _route_to_math_impl, "
-            f"got '{userdata.speaking_agent}'. "
-            "Drain-phase responses would be mis-attributed without this fix."
+        # speaking_agent must remain "orchestrator" — the transition message
+        # "Let me connect you with our Mathematics tutor!" fires AFTER this
+        # call and must still be attributed to the orchestrator.
+        assert userdata.speaking_agent == "orchestrator", (
+            f"Expected speaking_agent='orchestrator' (unchanged) but got "
+            f"'{userdata.speaking_agent}'. Routing functions must NOT change "
+            "speaking_agent — that is on_enter()'s responsibility."
         )
         assert isinstance(result, tuple)
         assert result[0].agent_name == "math"   # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
-    async def test_route_to_history_sets_speaking_agent(self):
+    async def test_route_to_history_leaves_speaking_agent_unchanged(self):
         """
-        _route_to_history_impl must set userdata.speaking_agent = "history" immediately.
+        _route_to_history_impl must NOT modify userdata.speaking_agent.
         """
         from agent.models.session_state import SessionUserdata
         from agent.tools.routing import _route_to_history_impl
@@ -97,25 +106,25 @@ class TestRoutingSetsSpeakingAgent:
              patch.object(routing_module.transcript_store, "save_routing_decision", AsyncMock()):
             result = await _route_to_history_impl(mock_agent, mock_context, "WW2 causes")
 
-        assert userdata.speaking_agent == "history", (
-            f"Expected speaking_agent='history' immediately after _route_to_history_impl, "
-            f"got '{userdata.speaking_agent}'."
+        assert userdata.speaking_agent == "orchestrator", (
+            f"Expected speaking_agent='orchestrator' (unchanged) but got '{userdata.speaking_agent}'."
         )
         assert isinstance(result, tuple)
         assert result[0].agent_name == "history"   # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
-    async def test_route_back_to_orchestrator_sets_speaking_agent(self):
+    async def test_route_back_to_orchestrator_leaves_speaking_agent_unchanged(self):
         """
-        _route_to_orchestrator_impl must set userdata.speaking_agent = "orchestrator"
-        immediately after route_to("orchestrator").
+        _route_to_orchestrator_impl must NOT modify userdata.speaking_agent.
+        The math agent's farewell sentence fires after this call and must still
+        be attributed to "math".
         """
         from agent.models.session_state import SessionUserdata
         from agent.tools.routing import _route_to_orchestrator_impl
 
         userdata = SessionUserdata(student_identity="carol", room_name="room-3")
         userdata.route_to("math")
-        userdata.speaking_agent = "math"   # math agent was active
+        userdata.speaking_agent = "math"   # set by math.on_enter
 
         mock_context = _make_mock_context(userdata)
         mock_agent = MagicMock()
@@ -133,8 +142,7 @@ class TestRoutingSetsSpeakingAgent:
              patch.object(routing_module.transcript_store, "save_routing_decision", AsyncMock()):
             result = await _route_to_orchestrator_impl(mock_agent, mock_context, "answered maths q")
 
-        assert userdata.speaking_agent == "orchestrator", (
-            f"Expected speaking_agent='orchestrator' immediately after _route_to_orchestrator_impl, "
-            f"got '{userdata.speaking_agent}'."
+        assert userdata.speaking_agent == "math", (
+            f"Expected speaking_agent='math' (unchanged) but got '{userdata.speaking_agent}'."
         )
         assert isinstance(result, tuple)
