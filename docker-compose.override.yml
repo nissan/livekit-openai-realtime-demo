@@ -1,6 +1,5 @@
 # Development override — adds hot-reload volume mounts
 # This file is automatically loaded by docker compose (no -f flag needed)
-version: "3.9"
 
 services:
   agent:

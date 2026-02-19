@@ -1,11 +1,14 @@
-version: "3.9"
-
 services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     networks:
       - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   livekit:
     image: livekit/livekit-server:v1.9.11
@@ -20,7 +23,8 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - internal
       - public
@@ -144,6 +148,8 @@ services:
         condition: service_healthy
       langfuse-minio:
         condition: service_healthy
+      langfuse-minio-init:
+        condition: service_completed_successfully
     networks:
       - internal
       - public
@@ -174,6 +180,8 @@ services:
         condition: service_healthy
       langfuse-clickhouse:
         condition: service_healthy
+      langfuse-minio-init:
+        condition: service_completed_successfully
     networks:
       - internal
 
@@ -346,6 +354,13 @@ services:
       SUPABASE_SERVICE_KEY: ${SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.D4gyAqkKFFsgPIz-MmYQHlx1xERp1gHQMEbPuvX5ogs}
     volumes:
       - ./supabase/kong.yml:/home/kong/kong.yml:ro
+    healthcheck:
+      # Kong returns HTTP response (any status) when it's ready to proxy requests
+      test: ["CMD-SHELL", "wget --server-response --spider http://localhost:8000/ 2>&1 | grep -q 'HTTP/'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     depends_on:
       supabase-auth:
         condition: service_healthy
@@ -381,7 +396,7 @@ services:
       langfuse:
         condition: service_healthy
       supabase-kong:
-        condition: service_started
+        condition: service_healthy
     networks:
       - internal
 
