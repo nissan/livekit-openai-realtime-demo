@@ -190,6 +190,12 @@ async def create_english_realtime_session(
         # FIXED (PLAN15): unwrap ConversationItemAddedEvent — SDK wraps ChatMessage in this event.
         # event.item is the actual ChatMessage; event itself has no .text_content or .role.
         item = event.item
+        # PLAN16 diagnostic: log unconditionally to confirm handler fires + content shape.
+        # If text_content is None/empty → forwarded_text="" in SDK → explains missing transcript.
+        logger.info(
+            "English conversation_item_added: role=%s text_content=%r",
+            getattr(item, "role", None), getattr(item, "text_content", None)
+        )
         content_text = item.text_content or ""
 
         if item.role == "assistant" and content_text:

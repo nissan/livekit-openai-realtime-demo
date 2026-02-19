@@ -180,10 +180,10 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
 
         # Close this pipeline session so it cannot compete with the English Realtime
         # session (same room, both sessions receive student audio via STT).
-        # FIXED (PLAN14): replaced fixed 12s timer with event-driven close.
-        # Wait for the transition speech to be committed (conversation_item_added),
-        # then add 5s to let the audio buffer drain before closing.
-        # A 30s fallback fires if the event never arrives (e.g. crash before commit).
+        # FIXED (PLAN16): interrupt pipeline TTS immediately after dispatch, then close
+        # at 2s. The English agent starts speaking at ~4s (3s delay + ~1s WebRTC) so
+        # there is no overlap. The previous event-driven close (PLAN15) fired too late
+        # (~13s after dispatch) because the transition TTS takes ~13s to commit.
         pipeline_session = context.session
         _close_done = asyncio.Event()
 
@@ -191,21 +191,21 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
             if _close_done.is_set():
                 return
             _close_done.set()
-            await asyncio.sleep(5.0)  # drain WebRTC audio buffer
+            await asyncio.sleep(2.0)  # let interrupt propagate + WebRTC drain
             try:
                 await pipeline_session.aclose()
                 logger.info("Pipeline session closed after English dispatch [session=%s]", session_id)
             except Exception:
                 logger.exception("Failed to close pipeline session after English routing")
 
-        def _on_transition_committed(event):
-            # FIXED (PLAN15): unwrap ConversationItemAddedEvent wrapper — .role is on event.item
-            if getattr(event.item, "role", None) == "assistant":
-                asyncio.create_task(_do_close_pipeline())
-                pipeline_session.off("conversation_item_added", _on_transition_committed)
+        # Stop the pipeline's current TTS speech immediately — prevents 14s overlap
+        # where both pipeline and English agents speak simultaneously.
+        pipeline_session.interrupt()
 
-        pipeline_session.on("conversation_item_added", _on_transition_committed)
+        # Close 2s after interrupt — well before English speaks (~4s after dispatch)
+        asyncio.create_task(_do_close_pipeline())
 
+        # 30s safety-net fallback in case the 2s close path fails
         async def _fallback_close_pipeline():
             await asyncio.sleep(30.0)
             await _do_close_pipeline()

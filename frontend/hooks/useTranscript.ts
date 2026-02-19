@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { useRoomContext } from "@livekit/components-react";
-import type { DataPacket_Kind } from "livekit-client";
+import type { DataPacket_Kind, TextStreamHandler } from "livekit-client";
 
 export interface TranscriptTurn {
   speaker: string;
@@ -53,6 +53,44 @@ export function useTranscript(): TranscriptTurn[] {
     room.on("dataReceived", onDataReceived);
     return () => {
       room.off("dataReceived", onDataReceived);
+    };
+  }, [room]);
+
+  // PLAN16: subscribe to lk.transcription text streams from the English Realtime agent.
+  // The conversation_item_added path is broken (forwarded_text="" in SDK) so the
+  // data-channel publish_data("transcript") never fires for English turns.
+  // The English agent's transcription node pipeline publishes lk.transcription to the
+  // room — the frontend (a remote participant) receives it here.
+  // NOTE: if conversation_item_added is fixed in a future SDK update we may get
+  // duplicate entries — a duplicate is far better than no transcript at all.
+  useEffect(() => {
+    if (!room) return;
+
+    const handler: TextStreamHandler = async (reader, participantInfo) => {
+      try {
+        const text = await reader.readAll();
+        if (text.trim()) {
+          setTurns((prev) => [
+            ...prev,
+            {
+              speaker: "english",
+              role: "assistant" as const,
+              content: text,
+              subject: "english",
+              turn: 0,
+              session_id: "",
+              timestamp: Date.now(),
+            },
+          ]);
+        }
+      } catch {
+        // Stream closed early (e.g. pipeline closed) — ignore
+      }
+    };
+
+    room.registerTextStreamHandler("lk.transcription", handler);
+    return () => {
+      room.unregisterTextStreamHandler("lk.transcription");
     };
   }, [room]);
 
