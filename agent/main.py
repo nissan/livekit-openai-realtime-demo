@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 
 from livekit.agents import (
     Agent,
@@ -158,6 +159,11 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         max_endpointing_delay=2.0,   # cap long pauses
     )
 
+    # Track user speech commit timestamp for e2e latency measurement
+    @session.on("user_input_transcribed")
+    def on_user_transcribed(event):
+        userdata.last_user_input_at = time.perf_counter()
+
     # Publish transcript turns to room data channel (topic: "transcript")
     # Frontend subscribes via useTranscript hook
     @session.on("conversation_item_added")
@@ -195,6 +201,11 @@ async def pipeline_session_entrypoint(ctx: JobContext):
                 span.set_attribute("subject_area", userdata.current_subject or "")
                 span.set_attribute("turn_number", userdata.turn_number)
                 span.set_attribute("role", role)
+                # For assistant turns: measure e2e latency from user speech to first response
+                if role == "assistant" and userdata.last_user_input_at is not None:
+                    e2e_ms = round((time.perf_counter() - userdata.last_user_input_at) * 1000)
+                    span.set_attribute("e2e_response_ms", e2e_ms)
+                    userdata.last_user_input_at = None
 
             # Publish to data channel for real-time frontend display
             payload = json.dumps({

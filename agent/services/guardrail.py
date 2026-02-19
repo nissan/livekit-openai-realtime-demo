@@ -15,10 +15,14 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+import time
+
 import anthropic
 import openai
+from opentelemetry import trace
 
 logger = logging.getLogger(__name__)
+_tracer = trace.get_tracer("guardrail")
 
 _openai_client: Optional[openai.AsyncOpenAI] = None
 _anthropic_client: Optional[anthropic.AsyncAnthropic] = None
@@ -78,52 +82,61 @@ async def check(text: str) -> ModerationResult:
     Run OpenAI omni-moderation-latest on the given text.
     Returns ModerationResult with flagged status and categories.
     """
-    try:
-        client = _get_openai()
-        response = await client.moderations.create(
-            model="omni-moderation-latest",
-            input=text,
-        )
-        result = response.results[0]
+    t0 = time.perf_counter()
+    with _tracer.start_as_current_span("guardrail.check") as span:
+        span.set_attribute("text_length", len(text))
+        try:
+            client = _get_openai()
+            response = await client.moderations.create(
+                model="omni-moderation-latest",
+                input=text,
+            )
+            result = response.results[0]
 
-        flagged_categories = []
-        highest_score = 0.0
+            flagged_categories = []
+            highest_score = 0.0
 
-        # Extract flagged categories and scores
-        categories = result.categories
-        scores = result.category_scores
+            # Extract flagged categories and scores
+            categories = result.categories
+            scores = result.category_scores
 
-        cat_map = {
-            "harassment": (categories.harassment, scores.harassment),
-            "harassment/threatening": (categories.harassment_threatening, scores.harassment_threatening),
-            "hate": (categories.hate, scores.hate),
-            "hate/threatening": (categories.hate_threatening, scores.hate_threatening),
-            "sexual": (categories.sexual, scores.sexual),
-            "sexual/minors": (categories.sexual_minors, scores.sexual_minors),
-            "violence": (categories.violence, scores.violence),
-            "violence/graphic": (categories.violence_graphic, scores.violence_graphic),
-            "self-harm": (getattr(categories, "self_harm", False), getattr(scores, "self_harm", 0.0)),
-            "self-harm/intent": (getattr(categories, "self_harm_intent", False), getattr(scores, "self_harm_intent", 0.0)),
-            "self-harm/instructions": (getattr(categories, "self_harm_instructions", False), getattr(scores, "self_harm_instructions", 0.0)),
-            "illicit": (getattr(categories, "illicit", False), getattr(scores, "illicit", 0.0)),
-            "illicit/violent": (getattr(categories, "illicit_violent", False), getattr(scores, "illicit_violent", 0.0)),
-        }
+            cat_map = {
+                "harassment": (categories.harassment, scores.harassment),
+                "harassment/threatening": (categories.harassment_threatening, scores.harassment_threatening),
+                "hate": (categories.hate, scores.hate),
+                "hate/threatening": (categories.hate_threatening, scores.hate_threatening),
+                "sexual": (categories.sexual, scores.sexual),
+                "sexual/minors": (categories.sexual_minors, scores.sexual_minors),
+                "violence": (categories.violence, scores.violence),
+                "violence/graphic": (categories.violence_graphic, scores.violence_graphic),
+                "self-harm": (getattr(categories, "self_harm", False), getattr(scores, "self_harm", 0.0)),
+                "self-harm/intent": (getattr(categories, "self_harm_intent", False), getattr(scores, "self_harm_intent", 0.0)),
+                "self-harm/instructions": (getattr(categories, "self_harm_instructions", False), getattr(scores, "self_harm_instructions", 0.0)),
+                "illicit": (getattr(categories, "illicit", False), getattr(scores, "illicit", 0.0)),
+                "illicit/violent": (getattr(categories, "illicit_violent", False), getattr(scores, "illicit_violent", 0.0)),
+            }
 
-        for category, (is_flagged, score) in cat_map.items():
-            if is_flagged:
-                flagged_categories.append(category)
-            if score > highest_score:
-                highest_score = score
+            for category, (is_flagged, score) in cat_map.items():
+                if is_flagged:
+                    flagged_categories.append(category)
+                if score > highest_score:
+                    highest_score = score
 
-        return ModerationResult(
-            flagged=result.flagged,
-            categories=flagged_categories,
-            highest_score=highest_score,
-        )
-    except Exception:
-        logger.exception("Moderation check failed for text snippet")
-        # Fail safe: do not flag, let content through
-        return ModerationResult(flagged=False, categories=[], highest_score=0.0)
+            moderation_result = ModerationResult(
+                flagged=result.flagged,
+                categories=flagged_categories,
+                highest_score=highest_score,
+            )
+            span.set_attribute("flagged", moderation_result.flagged)
+            span.set_attribute("highest_score", round(moderation_result.highest_score, 4))
+            span.set_attribute("check_ms", round((time.perf_counter() - t0) * 1000))
+            return moderation_result
+        except Exception:
+            logger.exception("Moderation check failed for text snippet")
+            span.set_attribute("error", True)
+            span.set_attribute("check_ms", round((time.perf_counter() - t0) * 1000))
+            # Fail safe: do not flag, let content through
+            return ModerationResult(flagged=False, categories=[], highest_score=0.0)
 
 
 async def rewrite(text: str) -> str:
@@ -131,20 +144,27 @@ async def rewrite(text: str) -> str:
     Rewrite flagged text using Claude Haiku for age-appropriateness.
     Returns the rewritten text, or the original if rewrite fails.
     """
-    try:
-        client = _get_anthropic()
-        message = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=REWRITE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": text}],
-        )
-        rewritten = message.content[0].text.strip()
-        logger.info("Guardrail rewrite completed (orig_len=%d, new_len=%d)", len(text), len(rewritten))
-        return rewritten
-    except Exception:
-        logger.exception("Guardrail rewrite failed — returning safe fallback")
-        return "I'm here to help you learn. Let me rephrase that in a better way."
+    t0 = time.perf_counter()
+    with _tracer.start_as_current_span("guardrail.rewrite") as span:
+        span.set_attribute("original_length", len(text))
+        try:
+            client = _get_anthropic()
+            message = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                system=REWRITE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": text}],
+            )
+            rewritten = message.content[0].text.strip()
+            logger.info("Guardrail rewrite completed (orig_len=%d, new_len=%d)", len(text), len(rewritten))
+            span.set_attribute("rewritten_length", len(rewritten))
+            span.set_attribute("rewrite_ms", round((time.perf_counter() - t0) * 1000))
+            return rewritten
+        except Exception:
+            logger.exception("Guardrail rewrite failed — returning safe fallback")
+            span.set_attribute("error", True)
+            span.set_attribute("rewrite_ms", round((time.perf_counter() - t0) * 1000))
+            return "I'm here to help you learn. Let me rephrase that in a better way."
 
 
 async def log_guardrail_event(

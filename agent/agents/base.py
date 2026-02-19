@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import AsyncGenerator, AsyncIterable, Optional
 
 from livekit import rtc
@@ -32,6 +33,7 @@ from agent.services.langfuse_setup import get_tracer as _get_tracer
 
 logger = logging.getLogger(__name__)
 _tracer = _get_tracer("agent-lifecycle")
+_tts_tracer = _get_tracer("tts-pipeline")
 
 # Sentence-boundary punctuation — fire guardrail per complete sentence
 SENTENCE_ENDINGS = (".", "!", "?", ":", ";")
@@ -74,21 +76,35 @@ class GuardedAgent(Agent):
                     buffer += chunk
                     stripped = buffer.rstrip()
                     if any(stripped.endswith(p) for p in SENTENCE_ENDINGS):
+                        t_guardrail_start = time.perf_counter()
                         safe_text = await guardrail_service.check_and_rewrite(
                             buffer,
                             session_id=session_id,
                             agent_name=agent.agent_name,
                         )
+                        t_guardrail_done = time.perf_counter()
+                        with _tts_tracer.start_as_current_span("tts.sentence") as span:
+                            span.set_attribute("sentence_length", len(buffer))
+                            span.set_attribute("guardrail_ms", round((t_guardrail_done - t_guardrail_start) * 1000))
+                            span.set_attribute("was_rewritten", safe_text != buffer)
+                            span.set_attribute("agent_name", agent.agent_name)
                         yield safe_text
                         buffer = ""
 
                 # Flush any remaining partial sentence at end of stream
                 if buffer.strip():
+                    t_guardrail_start = time.perf_counter()
                     safe_text = await guardrail_service.check_and_rewrite(
                         buffer,
                         session_id=session_id,
                         agent_name=agent.agent_name,
                     )
+                    t_guardrail_done = time.perf_counter()
+                    with _tts_tracer.start_as_current_span("tts.sentence") as span:
+                        span.set_attribute("sentence_length", len(buffer))
+                        span.set_attribute("guardrail_ms", round((t_guardrail_done - t_guardrail_start) * 1000))
+                        span.set_attribute("was_rewritten", safe_text != buffer)
+                        span.set_attribute("agent_name", agent.agent_name)
                     yield safe_text
 
             # Delegate to default TTS — converts text → rtc.AudioFrame

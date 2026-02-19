@@ -27,6 +27,7 @@ class SessionUserdata:
     escalation_reason: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     skip_next_user_turns: int = 0  # set by routing fns; suppresses phantom "user" transcript entries injected via generate_reply(user_input=pending_q) in on_enter()
+    last_user_input_at: Optional[float] = None  # perf_counter() timestamp of last user speech commit; used for e2e_response_ms OTEL span
 
     def advance_turn(self) -> int:
         """Increment and return the current turn number."""

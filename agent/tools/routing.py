@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 
 from livekit.agents import RunContext
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
@@ -55,6 +56,7 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
     """Hand off to MathAgent within the same pipeline session."""
     from agent.agents.math_agent import MathAgent  # lazy — avoids circular import
 
+    t0 = time.perf_counter()
     userdata = context.session.userdata
     session_id = userdata.session_id
     from_agent = getattr(agent, "agent_name", "unknown")
@@ -77,6 +79,7 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
         span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
+        span.set_attribute("decision_ms", round((time.perf_counter() - t0) * 1000))
 
     asyncio.create_task(transcript_store.save_routing_decision(
         session_id=session_id,
@@ -97,6 +100,7 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
     """Hand off to HistoryAgent within the same pipeline session."""
     from agent.agents.history_agent import HistoryAgent  # lazy — avoids circular import
 
+    t0 = time.perf_counter()
     userdata = context.session.userdata
     session_id = userdata.session_id
     from_agent = getattr(agent, "agent_name", "unknown")
@@ -117,6 +121,7 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
         span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
+        span.set_attribute("decision_ms", round((time.perf_counter() - t0) * 1000))
 
     asyncio.create_task(transcript_store.save_routing_decision(
         session_id=session_id,
@@ -135,6 +140,7 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
 
 async def _route_to_english_impl(agent, context: RunContext, question_summary: str):
     """Dispatch EnglishAgent (OpenAI Realtime) to this room."""
+    t0 = time.perf_counter()
     userdata = context.session.userdata
     session_id = userdata.session_id
     room_name = userdata.room_name
@@ -154,6 +160,7 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
         span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
+        span.set_attribute("decision_ms", round((time.perf_counter() - t0) * 1000))
 
     asyncio.create_task(transcript_store.save_routing_decision(
         session_id=session_id,
@@ -189,11 +196,18 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
         pipeline_session = context.session
         _close_done = asyncio.Event()
 
+        t_dispatch = time.perf_counter()
+
         async def _do_close_pipeline():
             if _close_done.is_set():
                 return
             _close_done.set()
             await asyncio.sleep(3.5)  # let orchestrator speak transition sentence; English starts at ~4s
+            actual_close_delay_ms = round((time.perf_counter() - t_dispatch) * 1000)
+            logger.info(
+                "Pipeline closing after English dispatch [session=%s, close_delay_ms=%d]",
+                session_id, actual_close_delay_ms,
+            )
             try:
                 await pipeline_session.aclose()
                 logger.info("Pipeline session closed after English dispatch [session=%s]", session_id)
@@ -243,6 +257,7 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
     """
     from agent.agents.orchestrator import OrchestratorAgent  # lazy — avoids circular import
 
+    t0 = time.perf_counter()
     userdata = context.session.userdata
     session_id = userdata.session_id
     from_agent = getattr(agent, "agent_name", "unknown")
@@ -262,6 +277,7 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
         span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
+        span.set_attribute("decision_ms", round((time.perf_counter() - t0) * 1000))
 
     asyncio.create_task(transcript_store.save_routing_decision(
         session_id=session_id,
