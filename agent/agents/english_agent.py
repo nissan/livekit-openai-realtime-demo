@@ -37,7 +37,7 @@ import logging
 import os
 from typing import Optional
 
-from livekit.agents import AgentSession, RoomInputOptions, function_tool
+from livekit.agents import AgentSession, function_tool
 from livekit.plugins import openai
 from livekit.plugins.openai import realtime
 from livekit.plugins.openai.realtime.realtime_model import InputAudioTranscription
@@ -270,8 +270,8 @@ async def create_english_realtime_session(
         # Calling generate_reply() immediately after session.start() results in silence
         # because the audio channel is not yet ready to transmit the reply.
         async def _greet_with_initial_question():
-            await asyncio.sleep(1.5)
-            session.generate_reply(user_input=initial_question)
+            await asyncio.sleep(3.0)  # extra time for WebRTC audio pipeline setup
+            await session.generate_reply(user_input=initial_question)
 
         asyncio.create_task(_greet_with_initial_question())
 
