@@ -20,11 +20,13 @@ from __future__ import annotations
 import logging
 
 from livekit.agents import function_tool, llm, RunContext
-from livekit.plugins import anthropic
+from livekit.plugins import anthropic, openai
 
 from agent.agents.base import GuardedAgent
 
 logger = logging.getLogger(__name__)
+
+ORCHESTRATOR_TTS_VOICE = "alloy"
 
 ORCHESTRATOR_SYSTEM_PROMPT = """You are a friendly and encouraging educational concierge
 for students aged 8–16. You are always in control of the conversation.
@@ -62,6 +64,7 @@ class OrchestratorAgent(GuardedAgent):
     Does NOT do subject teaching — routes to specialists.
     """
     agent_name = "orchestrator"
+    tts_voice = ORCHESTRATOR_TTS_VOICE
 
     def __init__(self, chat_ctx: llm.ChatContext | None = None):
         super().__init__(
@@ -70,6 +73,7 @@ class OrchestratorAgent(GuardedAgent):
                 model="claude-haiku-4-5-20251001",
                 temperature=0.1,  # very low temp for consistent routing
             ),
+            tts=openai.TTS(model="gpt-4o-mini-tts", voice=ORCHESTRATOR_TTS_VOICE),
             chat_ctx=chat_ctx,
         )
         logger.info("OrchestratorAgent initialised (claude-haiku-4-5-20251001)")

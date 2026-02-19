@@ -12,11 +12,13 @@ from __future__ import annotations
 import logging
 
 from livekit.agents import function_tool, llm, RunContext
-from livekit.plugins import anthropic
+from livekit.plugins import anthropic, openai
 
 from agent.agents.base import GuardedAgent
 
 logger = logging.getLogger(__name__)
+
+MATH_TTS_VOICE = "onyx"
 
 MATH_SYSTEM_PROMPT = """You are an expert mathematics tutor for students aged 8–16.
 
@@ -51,6 +53,7 @@ class MathAgent(GuardedAgent):
     for precise step-by-step mathematical reasoning.
     """
     agent_name = "math"
+    tts_voice = MATH_TTS_VOICE
 
     def __init__(self, chat_ctx: llm.ChatContext | None = None):
         super().__init__(
@@ -59,6 +62,7 @@ class MathAgent(GuardedAgent):
                 model="claude-sonnet-4-6",
                 temperature=0.3,  # low temp for precise maths
             ),
+            tts=openai.TTS(model="gpt-4o-mini-tts", voice=MATH_TTS_VOICE),
             chat_ctx=chat_ctx,
         )
         logger.info("MathAgent initialised (claude-sonnet-4-6, temp=0.3)")

@@ -58,6 +58,8 @@ so the main tutor can route to the correct specialist.
 # Default to gpt-5.2 — update via env var without code changes
 _DEFAULT_HISTORY_MODEL = "gpt-5.2"
 
+HISTORY_TTS_VOICE = "fable"
+
 
 class HistoryAgent(GuardedAgent):
     """
@@ -66,12 +68,14 @@ class HistoryAgent(GuardedAgent):
     Guardrail is fully active via inherited tts_node.
     """
     agent_name = "history"
+    tts_voice = HISTORY_TTS_VOICE
 
     def __init__(self, chat_ctx: llm.ChatContext | None = None):
         model = os.environ.get("OPENAI_HISTORY_MODEL", _DEFAULT_HISTORY_MODEL)
         super().__init__(
             instructions=HISTORY_SYSTEM_PROMPT,
             llm=openai.LLM(model=model),
+            tts=openai.TTS(model="gpt-4o-mini-tts", voice=HISTORY_TTS_VOICE),
             chat_ctx=chat_ctx,
         )
         logger.info("HistoryAgent initialised (model=%s)", model)

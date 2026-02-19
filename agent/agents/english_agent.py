@@ -134,7 +134,7 @@ async def create_english_realtime_session(
         userdata=session_userdata,
         llm=realtime.RealtimeModel(
             model=_REALTIME_MODEL,
-            voice="ash",
+            voice="shimmer",
             instructions=ENGLISH_SYSTEM_PROMPT,
             modalities=["audio", "text"],
             input_audio_transcription=realtime.InputAudioTranscription(
