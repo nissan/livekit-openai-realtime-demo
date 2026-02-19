@@ -355,8 +355,9 @@ services:
     volumes:
       - ./supabase/kong.yml:/home/kong/kong.yml:ro
     healthcheck:
-      # Kong returns HTTP response (any status) when it's ready to proxy requests
-      test: ["CMD-SHELL", "wget --server-response --spider http://localhost:8000/ 2>&1 | grep -q 'HTTP/'"]
+      # Use Kong Admin API on 127.0.0.1:8001 (proxy port 8000 binds IPv4 0.0.0.0,
+      # but 'localhost' inside container resolves to ::1 on macOS Docker Desktop)
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8001/ >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 10
