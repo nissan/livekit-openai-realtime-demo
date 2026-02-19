@@ -186,8 +186,10 @@ async def create_english_realtime_session(
     # Post-hoc guardrail + transcript publishing for Realtime session.
     # FIXED (PLAN13): livekit-agents v1.4.2 rejects async callbacks in .on()
     # Use a sync dispatcher that spawns an async task.
-    async def _handle_conversation_item(item):
-        # FIXED (PLAN7): use text_content property — ChatContent is str | AudioContent | ImageContent.
+    async def _handle_conversation_item(event):
+        # FIXED (PLAN15): unwrap ConversationItemAddedEvent — SDK wraps ChatMessage in this event.
+        # event.item is the actual ChatMessage; event itself has no .text_content or .role.
+        item = event.item
         content_text = item.text_content or ""
 
         if item.role == "assistant" and content_text:
@@ -258,8 +260,8 @@ async def create_english_realtime_session(
             )
 
     @session.on("conversation_item_added")
-    def on_item_added(item):
-        asyncio.create_task(_handle_conversation_item(item))
+    def on_item_added(event):
+        asyncio.create_task(_handle_conversation_item(event))
 
     await session.start(agent, room=room)
 

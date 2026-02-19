@@ -198,8 +198,9 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
             except Exception:
                 logger.exception("Failed to close pipeline session after English routing")
 
-        def _on_transition_committed(item):
-            if getattr(item, "role", None) == "assistant":
+        def _on_transition_committed(event):
+            # FIXED (PLAN15): unwrap ConversationItemAddedEvent wrapper — .role is on event.item
+            if getattr(event.item, "role", None) == "assistant":
                 asyncio.create_task(_do_close_pipeline())
                 pipeline_session.off("conversation_item_added", _on_transition_committed)
 
