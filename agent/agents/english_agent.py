@@ -31,6 +31,7 @@ Fallback: If two-session coordination is too complex, degrade to:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -58,6 +59,11 @@ Topics: grammar and punctuation, creative writing, poetry analysis, novel studie
 essay writing, public speaking, vocabulary development, reading comprehension.
 
 Keep responses conversational and engaging — you are speaking directly with the student.
+
+When the student says goodbye, thank them for the session, and ALWAYS call
+route_back_to_orchestrator so the main tutor can give a proper farewell.
+When the student asks about maths, history, or any other subject outside English,
+ALWAYS call route_back_to_orchestrator immediately.
 """
 
 # Realtime model — GA model released Aug 2025 (was gpt-4o-realtime-preview)
@@ -84,16 +90,22 @@ class EnglishAgent(GuardedAgent):
         )
         logger.info("EnglishAgent initialised (realtime, model=%s)", _REALTIME_MODEL)
 
-    @function_tool(description="Route back to the orchestrator when the student asks about a different subject")
+    @function_tool(
+        description=(
+            "Route back to the orchestrator when: the student asks about a different "
+            "subject (maths, history, etc.); OR the student says goodbye, thanks, or "
+            "wants to end or pause the tutoring session."
+        )
+    )
     async def route_back_to_orchestrator(
         self,
         context,
         reason: str,
     ) -> str:
         """
-        Signal that the student has moved to a different topic.
-        The Realtime session will dispatch the pipeline orchestrator
-        back to the room and this session will exit.
+        Signal that the student has moved to a different topic or wants to end.
+        The Realtime session will dispatch the pipeline orchestrator back to the
+        room and this English session will close.
         """
         logger.info("English agent routing back to orchestrator: %s", reason)
         session_id = context.session.userdata.session_id
@@ -114,6 +126,20 @@ class EnglishAgent(GuardedAgent):
                 )
         except Exception:
             logger.exception("Failed to dispatch orchestrator on English→back handoff")
+
+        # Close this English session so it cannot compete with the newly dispatched
+        # pipeline session (both sessions share the same room and student audio).
+        english_session = context.session
+
+        async def _close_english_after_dispatch():
+            await asyncio.sleep(3.0)
+            try:
+                await english_session.aclose()
+                logger.info("English session closed after routing back [session=%s]", session_id)
+            except Exception:
+                logger.exception("Failed to close English session after routing back")
+
+        asyncio.create_task(_close_english_after_dispatch())
 
         return "Let me pass you back to the main tutor who can help with that."
 

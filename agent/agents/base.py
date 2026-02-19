@@ -102,4 +102,22 @@ class GuardedAgent(Agent):
         - OrchestratorAgent: greets the student on session start
         - Specialist agents: immediately answers the pending question from history
         """
+        # Diagnostic logging — captured in Langfuse via OTEL to help debug
+        # cases where an agent answers a stale question from history.
+        try:
+            msgs = list(self.session.history.messages())
+            last_user_text = ""
+            for msg in reversed(msgs):
+                if msg.role == "user":
+                    for part in msg.content:
+                        if hasattr(part, "text") and part.text:
+                            last_user_text += part.text
+                    break
+            logger.info(
+                "%s.on_enter history_length=%d last_user=%.150r",
+                self.agent_name, len(msgs), last_user_text,
+            )
+        except Exception:
+            logger.debug("%s.on_enter: could not inspect history", self.agent_name)
+
         await self.session.generate_reply()

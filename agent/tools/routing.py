@@ -27,6 +27,29 @@ logger = logging.getLogger(__name__)
 tracer = get_tracer("routing")
 
 
+def _get_last_user_message(context: RunContext) -> str:
+    """Extract the most recent user message text for observability spans."""
+    try:
+        for msg in reversed(list(context.session.history.messages())):
+            if msg.role == "user":
+                text = ""
+                for part in msg.content:
+                    if hasattr(part, "text") and part.text:
+                        text += part.text
+                return text[:500]
+    except Exception:
+        pass
+    return ""
+
+
+def _get_history_length(context: RunContext) -> int:
+    """Count messages in session history for observability spans."""
+    try:
+        return len(list(context.session.history.messages()))
+    except Exception:
+        return -1
+
+
 async def _route_to_math_impl(agent, context: RunContext, question_summary: str):
     """Hand off to MathAgent within the same pipeline session."""
     from agent.agents.math_agent import MathAgent  # lazy — avoids circular import
@@ -45,6 +68,8 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
         span.set_attribute("turn_number", turn_number)
         span.set_attribute("question_summary", question_summary)
         span.set_attribute("previous_subject", previous_subject)
+        span.set_attribute("last_user_message", _get_last_user_message(context))
+        span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
 
@@ -81,6 +106,8 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
         span.set_attribute("turn_number", turn_number)
         span.set_attribute("question_summary", question_summary)
         span.set_attribute("previous_subject", previous_subject)
+        span.set_attribute("last_user_message", _get_last_user_message(context))
+        span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
 
@@ -116,6 +143,8 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
         span.set_attribute("turn_number", turn_number)
         span.set_attribute("question_summary", question_summary)
         span.set_attribute("previous_subject", previous_subject)
+        span.set_attribute("last_user_message", _get_last_user_message(context))
+        span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
 
@@ -141,6 +170,22 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
                 metadata=f"session:{session_id}",
             )
         logger.info("Dispatched learning-english worker to room %s", room_name)
+
+        # Close this pipeline session so it cannot compete with the English Realtime
+        # session (same room, both sessions receive student audio via STT).
+        # Brief delay lets the transition TTS message finish playing first.
+        pipeline_session = context.session
+
+        async def _close_pipeline_after_english_dispatch():
+            await asyncio.sleep(4.0)
+            try:
+                await pipeline_session.aclose()
+                logger.info("Pipeline session closed after English dispatch [session=%s]", session_id)
+            except Exception:
+                logger.exception("Failed to close pipeline session after English routing")
+
+        asyncio.create_task(_close_pipeline_after_english_dispatch())
+
     except Exception:
         logger.exception("Failed to dispatch English worker — falling back to pipeline English")
         from livekit.plugins import openai as openai_plugin
@@ -188,6 +233,8 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
         span.set_attribute("turn_number", turn_number)
         span.set_attribute("question_summary", reason)
         span.set_attribute("previous_subject", previous_subject)
+        span.set_attribute("last_user_message", _get_last_user_message(context))
+        span.set_attribute("history_length", _get_history_length(context))
         span.set_attribute("langfuse.session_id", session_id)
         span.set_attribute("langfuse.user_id", userdata.student_identity)
 

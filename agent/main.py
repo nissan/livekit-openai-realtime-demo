@@ -84,11 +84,22 @@ async def pipeline_session_entrypoint(ctx: JobContext):
     student_identity = participant.identity if participant else "unknown-student"
     room_name = ctx.room.name
 
+    # Recover session_id if this pipeline session was re-dispatched after an
+    # English Realtime session (english_agent.py sets metadata = "return_from_english:{id}")
+    ctx_metadata = ctx.room.metadata or ""
+    recovered_session_id = None
+    if ctx_metadata.startswith("return_from_english:"):
+        recovered_session_id = ctx_metadata.split(":", 1)[1]
+        logger.info("Recovering session_id from English return: %s", recovered_session_id)
+
     # Initialise session state
     userdata = SessionUserdata(
         student_identity=student_identity,
         room_name=room_name,
     )
+    if recovered_session_id:
+        userdata.session_id = recovered_session_id
+        userdata.current_subject = "orchestrator"  # back at orchestrator after English
 
     # Log session creation to Supabase
     await transcript_store.create_session_record(
