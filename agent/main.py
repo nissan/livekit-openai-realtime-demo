@@ -36,7 +36,7 @@ from agent.agents.orchestrator import OrchestratorAgent
 from agent.agents.english_agent import create_english_realtime_session
 from agent.models.session_state import SessionUserdata
 from agent.services import transcript_store
-from agent.services.langfuse_setup import setup_langfuse_tracing, get_tracer
+from agent.services.langfuse_setup import setup_langfuse_tracing, get_tracer, create_session_trace
 
 logger = logging.getLogger(__name__)
 _tracer = None  # initialised after setup_langfuse_tracing() in __main__
@@ -128,6 +128,15 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         userdata.session_id, room_name, student_identity
     )
 
+    # Session start marker — creates root trace context in Langfuse for this session
+    tracer = get_tracer("pipeline-session")
+    with tracer.start_as_current_span("session.start") as span:
+        span.set_attributes(create_session_trace(
+            userdata.session_id, student_identity, room_name
+        ))
+        span.set_attribute("session_type", "pipeline")
+        span.set_attribute("recovered", bool(recovered_session_id))
+
     # VAD loaded in prewarm; await the coroutine if needed
     vad = ctx.proc.userdata.get("vad")
     if asyncio.iscoroutine(vad):
@@ -142,9 +151,6 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         min_endpointing_delay=0.4,   # prevent premature cutoff
         max_endpointing_delay=2.0,   # cap long pauses
     )
-
-    # Tracer for conversation item spans
-    tracer = get_tracer("pipeline-session")
 
     # Publish transcript turns to room data channel (topic: "transcript")
     # Frontend subscribes via useTranscript hook
@@ -236,6 +242,18 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         session_report=session_report,
     )
 
+    # Session end marker — records final stats in Langfuse
+    with tracer.start_as_current_span("session.end") as span:
+        span.set_attribute("langfuse.session_id", userdata.session_id)
+        span.set_attribute("langfuse.user_id", student_identity)
+        span.set_attribute("session.id", userdata.session_id)
+        span.set_attribute("session_type", "pipeline")
+        span.set_attribute("total_turns", userdata.turn_number)
+        span.set_attribute("escalated", userdata.escalated)
+        span.set_attribute("subjects_covered", ",".join(set(
+            userdata.previous_subjects + ([userdata.current_subject] if userdata.current_subject else [])
+        )))
+
     logger.info(
         "Pipeline session ended [session=%s, turns=%d, escalated=%s]",
         userdata.session_id, userdata.turn_number, userdata.escalated
@@ -296,9 +314,24 @@ async def english_session_entrypoint(ctx: JobContext):
         initial_question=initial_question,
     )
 
+    # Session start marker for the English Realtime session in Langfuse
+    tracer_eng = get_tracer("english-session")
+    with tracer_eng.start_as_current_span("session.start") as span:
+        span.set_attributes(create_session_trace(
+            userdata.session_id, student_identity, room_name
+        ))
+        span.set_attribute("session_type", "realtime_english")
+
     session_closed = asyncio.Event()
     session.on("close", lambda _: session_closed.set())
     await session_closed.wait()
+
+    # Session end marker for Langfuse
+    with tracer_eng.start_as_current_span("session.end") as span:
+        span.set_attribute("langfuse.session_id", userdata.session_id)
+        span.set_attribute("langfuse.user_id", student_identity)
+        span.set_attribute("session.id", userdata.session_id)
+        span.set_attribute("session_type", "realtime_english")
 
     logger.info(
         "English Realtime session ended [session=%s]",

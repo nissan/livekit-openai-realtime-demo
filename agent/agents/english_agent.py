@@ -44,8 +44,10 @@ from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from agent.agents.base import GuardedAgent
 from agent.services import guardrail as guardrail_service
+from agent.services.langfuse_setup import get_tracer as _get_tracer
 
 logger = logging.getLogger(__name__)
+_tracer = _get_tracer("english-realtime-session")
 
 ENGLISH_SYSTEM_PROMPT = """You are an expert English language and literature tutor for students aged 8–16.
 
@@ -190,6 +192,17 @@ async def create_english_realtime_session(
         content_text = item.text_content or ""
 
         if item.role == "assistant" and content_text:
+            # OTEL span for Langfuse visibility into English Realtime session
+            with _tracer.start_as_current_span("conversation.item") as span:
+                span.set_attribute("langfuse.session_id", session_userdata.session_id)
+                span.set_attribute("langfuse.user_id", session_userdata.student_identity)
+                span.set_attribute("session.id", session_userdata.session_id)
+                span.set_attribute("user.id", session_userdata.student_identity)
+                span.set_attribute("subject_area", "english")
+                span.set_attribute("role", "assistant")
+                span.set_attribute("session_type", "realtime")
+                span.set_attribute("turn", getattr(session_userdata, "turn_number", 0))
+
             # Guardrail check (post-hoc — cannot interrupt Realtime audio already playing)
             result = await guardrail_service.check(content_text)
             if result.flagged:
@@ -225,6 +238,15 @@ async def create_english_realtime_session(
             )
 
         elif item.role == "user" and content_text:
+            # OTEL span for user turns in English Realtime session
+            with _tracer.start_as_current_span("conversation.item") as span:
+                span.set_attribute("langfuse.session_id", session_userdata.session_id)
+                span.set_attribute("langfuse.user_id", session_userdata.student_identity)
+                span.set_attribute("session.id", session_userdata.session_id)
+                span.set_attribute("subject_area", "english")
+                span.set_attribute("role", "user")
+                span.set_attribute("session_type", "realtime")
+
             # Publish user turns so the transcript is complete on both sides
             payload = json.dumps({
                 "speaker": "student",

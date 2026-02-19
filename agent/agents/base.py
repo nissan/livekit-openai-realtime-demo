@@ -28,8 +28,10 @@ from livekit import rtc
 from livekit.agents import Agent, ModelSettings
 
 from agent.services import guardrail as guardrail_service
+from agent.services.langfuse_setup import get_tracer as _get_tracer
 
 logger = logging.getLogger(__name__)
+_tracer = _get_tracer("agent-lifecycle")
 
 # Sentence-boundary punctuation — fire guardrail per complete sentence
 SENTENCE_ENDINGS = (".", "!", "?", ":", ";")
@@ -102,16 +104,30 @@ class GuardedAgent(Agent):
         - OrchestratorAgent: greets the student on session start
         - Specialist agents: immediately answers the pending question from history
         """
+        # OTEL span to mark agent activation — visible in Langfuse timeline
+        try:
+            session_id = self.session.userdata.session_id
+            student_identity = self.session.userdata.student_identity
+        except AttributeError:
+            session_id = "unknown"
+            student_identity = "unknown"
+
+        with _tracer.start_as_current_span("agent.activated") as span:
+            span.set_attribute("agent_name", self.agent_name)
+            span.set_attribute("langfuse.session_id", session_id)
+            span.set_attribute("langfuse.user_id", student_identity)
+            span.set_attribute("session.id", session_id)
+
         # Diagnostic logging — captured in Langfuse via OTEL to help debug
         # cases where an agent answers a stale question from history.
+        # FIXED (PLAN8): use text_content property — hasattr(part, "text") was always
+        # False for plain str objects, producing empty last_user_text.
         try:
             msgs = list(self.session.history.messages())
             last_user_text = ""
             for msg in reversed(msgs):
                 if msg.role == "user":
-                    for part in msg.content:
-                        if hasattr(part, "text") and part.text:
-                            last_user_text += part.text
+                    last_user_text = msg.text_content or ""
                     break
             logger.info(
                 "%s.on_enter history_length=%d last_user=%.150r",

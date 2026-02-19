@@ -264,6 +264,16 @@ async def _escalate_impl(agent, context: RunContext, reason: str) -> str:
     userdata.escalated = True
     userdata.escalation_reason = reason
 
+    # OTEL span — highest-priority safety event, must be visible in Langfuse
+    with tracer.start_as_current_span("teacher.escalation") as span:
+        span.set_attribute("langfuse.session_id", session_id)
+        span.set_attribute("langfuse.user_id", userdata.student_identity)
+        span.set_attribute("session.id", session_id)
+        span.set_attribute("from_agent", from_agent)
+        span.set_attribute("reason", reason[:500])
+        span.set_attribute("room_name", room_name)
+        span.set_attribute("turn_number", userdata.turn_number)
+
     asyncio.create_task(transcript_store.save_routing_decision(
         session_id=session_id,
         turn_number=userdata.advance_turn(),
