@@ -5,20 +5,30 @@ version: "3.9"
 services:
   agent:
     volumes:
-      - ./agent:/app
+      # Mount repo root so 'from agent.agents...' imports resolve correctly
+      # PYTHONPATH=/repo makes /repo/agent importable as the 'agent' package
+      - .:/repo
+    working_dir: /repo/agent
     command: python main.py dev
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/repo"
 
   frontend:
     volumes:
+      # Mount local frontend dir (including its node_modules) directly into /app.
+      # Do NOT use a named volume for node_modules — it shadows the host node_modules
+      # with an empty/stale container-side install that misses @swc/helpers sub-paths.
       - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      - frontend_next_cache:/app/.next
     environment:
       NODE_ENV: development
       # Browser-side Supabase vars — must point to localhost so the browser can reach Kong
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.ix3Xvz1KYi-nF_GmVRJZ9F7Yam8CU_u2NzFKTQO9flo}
-    command: npm run dev
+    # node_modules comes from the host ./frontend/node_modules (via the volume mount above)
+    command: sh -c "npm run dev"
+
+volumes:
+  frontend_next_cache:

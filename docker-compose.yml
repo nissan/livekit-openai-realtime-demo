@@ -42,6 +42,60 @@ services:
       timeout: 5s
       retries: 5
 
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      # Force IPv4 listen — macOS Docker does not route IPv6 in bridge networks
+      - ./clickhouse/listen.xml:/etc/clickhouse-server/config.d/listen.xml:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO — S3-compatible blob store required by Langfuse v3 for event uploads
+  langfuse-minio:
+    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${LANGFUSE_MINIO_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:-minio_secret}
+    volumes:
+      - langfuse_minio_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Creates the langfuse-events bucket in MinIO on first run
+  langfuse-minio-init:
+    image: minio/mc:RELEASE.2024-10-02T08-27-28Z
+    restart: on-failure
+    depends_on:
+      langfuse-minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://langfuse-minio:9000 ${LANGFUSE_MINIO_USER:-minio} ${LANGFUSE_MINIO_PASSWORD:-minio_secret} &&
+        mc mb --ignore-existing local/langfuse-events &&
+        echo 'Bucket langfuse-events ready'
+      "
+    networks:
+      - internal
+
   langfuse:
     image: langfuse/langfuse:3
     restart: unless-stopped
@@ -51,19 +105,38 @@ services:
       DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse_secret}@langfuse-db:5432/langfuse
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-change_me_in_production}
       NEXTAUTH_URL: http://localhost:3001
+      CLICKHOUSE_URL: http://clickhouse:${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}@langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}@langfuse-clickhouse:9000
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}
+      REDIS_CONNECTION_STRING: redis://redis:6379
+      SALT: ${LANGFUSE_SALT:-local-dev-salt-not-for-production}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
       LANGFUSE_INIT_ORG_ID: my-org
       LANGFUSE_INIT_ORG_NAME: "Learning Platform"
       LANGFUSE_INIT_PROJECT_ID: learning-project
       LANGFUSE_INIT_PROJECT_NAME: "Student Voice Agent"
-      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-lf-pk-dev}
-      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-lf-sk-dev}
-      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:-admin@localhost}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-dev}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-dev}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:-admin@example.local}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:-changeme123}
       LANGFUSE_INIT_USER_NAME: Admin
       TELEMETRY_ENABLED: "false"
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT: "true"
+      # S3/MinIO blob storage — required by Langfuse v3 for event upload
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse-events
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-minio_secret}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
     depends_on:
       langfuse-db:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-minio:
         condition: service_healthy
     networks:
       - internal
@@ -78,7 +151,7 @@ services:
   ##############################################################################
 
   supabase-db:
-    image: supabase/postgres:15.6.1.152
+    image: public.ecr.aws/supabase/postgres:17.6.1.063
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
@@ -99,12 +172,14 @@ services:
       POSTGRES_DB: postgres
     volumes:
       - supabase_db_data:/var/lib/postgresql/data
+      # zz-role-passwords.sh runs AFTER the image's migrate.sh (which creates the roles)
+      - ./supabase/init/zz-role-passwords.sh:/docker-entrypoint-initdb.d/zz-role-passwords.sh:ro
       - ./supabase/migrations:/docker-entrypoint-initdb.d/migrations:ro
     networks:
       - internal
 
   supabase-auth:
-    image: supabase/gotrue:v2.164.0
+    image: public.ecr.aws/supabase/gotrue:v2.185.0
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
@@ -134,7 +209,7 @@ services:
       - internal
 
   supabase-rest:
-    image: postgrest/postgrest:v12.2.3
+    image: public.ecr.aws/supabase/postgrest:v14.1
     restart: unless-stopped
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
@@ -152,9 +227,10 @@ services:
       - internal
 
   supabase-realtime:
-    image: supabase/realtime:v2.30.23
+    image: public.ecr.aws/supabase/realtime:v2.69.2
     restart: unless-stopped
     environment:
+      RLIMIT_NOFILE: "65536"
       PORT: 4000
       DB_HOST: supabase-db
       DB_PORT: 5432
@@ -179,7 +255,7 @@ services:
       - internal
 
   supabase-meta:
-    image: supabase/postgres-meta:v0.84.2
+    image: public.ecr.aws/supabase/postgres-meta:v0.95.2
     restart: unless-stopped
     environment:
       PG_META_PORT: 8080
@@ -195,7 +271,7 @@ services:
       - internal
 
   supabase-studio:
-    image: supabase/studio:20241028-d34f26e
+    image: public.ecr.aws/supabase/studio:2026.01.12-sha-4e9b718
     restart: unless-stopped
     ports:
       - "54323:3000"
@@ -220,7 +296,7 @@ services:
       - public
 
   supabase-kong:
-    image: kong:2.8.1
+    image: public.ecr.aws/supabase/kong:2.8.1
     restart: unless-stopped
     ports:
       - "54321:8000/tcp"
@@ -303,4 +379,6 @@ networks:
 
 volumes:
   langfuse_db_data:
+  langfuse_clickhouse_data:
+  langfuse_minio_data:
   supabase_db_data:

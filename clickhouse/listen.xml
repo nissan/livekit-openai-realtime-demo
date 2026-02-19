@@ -1,0 +1,47 @@
+<clickhouse>
+    <!-- Force IPv4 — macOS Docker bridge networks don't route IPv6 -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <!-- Shard/replica macros required by ReplicatedMergeTree + ON CLUSTER syntax -->
+    <macros>
+        <shard>01</shard>
+        <replica>clickhouse-01</replica>
+    </macros>
+
+    <!-- Single-node cluster definition (required for ON CLUSTER default) -->
+    <remote_servers>
+        <default>
+            <shard>
+                <replica>
+                    <host>localhost</host>
+                    <port>9000</port>
+                    <user>clickhouse</user>
+                    <password>clickhouse_secret</password>
+                </replica>
+            </shard>
+        </default>
+    </remote_servers>
+
+    <!-- Built-in Keeper for single-node ReplicatedMergeTree (no ZooKeeper needed) -->
+    <keeper_server>
+        <tcp_port>9181</tcp_port>
+        <server_id>1</server_id>
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>localhost</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+
+    <!-- Tell ClickHouse to use the built-in Keeper instead of external ZooKeeper -->
+    <zookeeper>
+        <node>
+            <host>localhost</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>
