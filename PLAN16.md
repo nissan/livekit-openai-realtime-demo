@@ -31,129 +31,186 @@ The PLAN15 event-driven fix correctly identifies role="assistant" on the event,
 but the event arrives **too late** (13s after dispatch) relative to when English
 starts speaking (3s after dispatch).
 
-**Fix**: Call `pipeline_session.interrupt()` immediately after dispatch to stop the
-ongoing TTS, then use a 2s fixed timer to close. English starts at ~4s → no overlap.
+### Bug B — Missing Transcript: `text_content` Was Empty (Initial Assumption)
+
+Initial assumption: `forwarded_text = ""` in the Realtime SDK path → `conversation_item_added`
+never fires with content → English turns never published.
+
+**Corrected by live logs**: Diagnostic logging added in this plan revealed `text_content`
+IS populated for the English agent. The `conversation_item_added` path was working all along
+once PLAN15's unwrapping fix was in place.
+
+### Bug C — Routing Context Shown as "You" in Transcript
+
+When routing between agents, `generate_reply(user_input=question_summary)` is called
+from `GuardedAgent.on_enter()`. This injects the routing question summary as a
+`role="user"` conversation item, which `main.py`'s `on_conversation_item` published as
+`speaker="student"` — appearing as "You" in the transcript panel even though the
+student's original question was already shown.
 
 ---
 
-### Bug B — Missing Transcript: `forwarded_text` Is Empty + Wrong Subscription Path
+## All Fixes Implemented (Iterative — 6 commits)
 
-SDK source (`agent_activity.py`, `_realtime_generation_task_impl`):
-```python
-if msg_gen and forwarded_text:    # <-- skipped entirely if forwarded_text == ""
-    msg = _create_assistant_message(message_id, forwarded_text, interrupted)
-    self._session._conversation_item_added(msg)
-```
-
-`forwarded_text = text_out.text if text_out else ""`
-
-For Realtime model: `text_out.text` is populated from `response.output_audio_transcript.delta`
-events (confirmed from SDK: `realtime_model.py:933` handles this event type) OR
-`response.output_text.delta` for text modality. Both write to `text_ch` → `text_stream`.
-
-Evidence: English agent logs show "ignoring text stream with topic 'lk.transcription'"
-at t=14s — this IS the English agent's audio transcription published via the
-transcription node pipeline to the LiveKit room. The agent SPEAKS and its audio IS
-transcribed. But `forwarded_text = ""` → `_conversation_item_added` is never called →
-handler never fires → no `publish_data(topic="transcript")` → nothing in the panel.
-
-Root cause (confirmed by SDK): `lk.transcription` IS published to the room by the English
-agent's transcription node pipeline. This is a SEPARATE path from `conversation_item_added`.
-The `lk.transcription` text stream flows through the room to ALL OTHER participants —
-including the student's browser frontend.
-
-**Key insight**: The LOCAL participant (English agent) cannot receive its own `lk.transcription`
-stream (no loopback in LiveKit). So registering a handler in the English agent is WRONG.
-
-**Correct Fix**: Register `room.registerTextStreamHandler("lk.transcription", ...)` in the
-**FRONTEND** (`useTranscript.ts`). The browser IS a remote participant that receives the
-English agent's `lk.transcription` text stream. The LiveKit JS SDK's `Room` class has
-`registerTextStreamHandler(topic, callback)` with a `TextStreamReader` that supports
-`readAll()` returning the complete turn text when the stream closes.
-
-**Two-part Fix B:**
-1. Add `logger.info` at the top of `_handle_conversation_item` (diagnostic only — shows if/when handler fires and with what content)
-2. In `useTranscript.ts`, register `room.registerTextStreamHandler("lk.transcription", ...)` to capture English agent turns from the text stream path
-
----
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `agent/tools/routing.py` | Fix A: replace event-driven close with `interrupt()` + 2s timer |
-| `agent/agents/english_agent.py` | Fix B1: add diagnostic `logger.info` at top of `_handle_conversation_item` |
-| `frontend/hooks/useTranscript.ts` | Fix B2: add `room.registerTextStreamHandler("lk.transcription", ...)` |
-
----
-
-## Detailed Changes Implemented
-
-### Fix A — `agent/tools/routing.py`
+### Fix A1 — `agent/tools/routing.py`: Initial approach — interrupt() + 2s timer
 
 Replaced the PLAN15 event-driven close with:
 1. `pipeline_session.interrupt()` — stops TTS immediately after dispatch
-2. `asyncio.create_task(_do_close_pipeline())` — closes at 2s (before English speaks at ~4s)
+2. `asyncio.create_task(_do_close_pipeline())` with `asyncio.sleep(2.0)` — closes 2s later
 3. 30s fallback retained as safety net
-4. Removed `conversation_item_added` event listener entirely
+4. Removed `conversation_item_added` event listener
 
-### Fix B1 — `agent/agents/english_agent.py`
+**Problem discovered**: `interrupt()` was called while the orchestrator TTS was playing
+its transition message ("Let me connect you with our English tutor!") — silencing it
+completely. Students heard nothing before the English agent started.
 
-Added diagnostic `logger.info` at the top of `_handle_conversation_item`:
+---
+
+### Fix A2 — `agent/tools/routing.py`: Remove interrupt(), extend to 3.5s ✓ FINAL
+
+Removed `interrupt()` entirely. Changed sleep from `2.0s` to `3.5s`:
+- Orchestrator gets ~3.5s to speak its transition sentence
+- Pipeline closes at T+3.5s
+- English agent starts speaking at T+4s (3s delay + ~1s WebRTC pipeline setup)
+- **0.5s gap — no overlap, orchestrator speech heard**
+
+---
+
+### Fix B1 — `agent/agents/english_agent.py`: Diagnostic logging ✓ KEPT
+
+Added unconditional `logger.info` at top of `_handle_conversation_item`:
 ```python
 logger.info(
     "English conversation_item_added: role=%s text_content=%r",
     getattr(item, "role", None), getattr(item, "text_content", None)
 )
 ```
-
-### Fix B2 — `frontend/hooks/useTranscript.ts`
-
-Added `useEffect` registering `room.registerTextStreamHandler("lk.transcription", ...)`.
-`TextStreamHandler` type imported from `livekit-client`.
-Handler calls `reader.readAll()` and appends the complete turn to the transcript list.
+Live logs confirmed `text_content` IS populated — `conversation_item_added` path works.
+The `publish_data(topic="transcript")` path in `english_agent.py` was already functional.
 
 ---
 
-## Risk: Duplicate Transcript Messages
+### Fix B2 — `frontend/hooks/useTranscript.ts`: Three iterations
 
-If `conversation_item_added` path is fixed in a future SDK update AND `lk.transcription`
-also fires, we'd get duplicate English transcript entries in the UI.
+**Iteration 1** — `registerTextStreamHandler("lk.transcription", ...)`:
+Added a second `useEffect` registering a text stream handler.
 
-**Mitigation**: Accept potential duplicates for now — a duplicate entry is far better
-than no transcript at all. Added `// NOTE: potential duplicate` comment in code.
+**Problem**: `@livekit/components-react` internally registers its own handler for
+`"lk.transcription"`. The SDK only allows ONE handler per topic → `DataStreamError`
+on mount, crashing the page.
+
+**Iteration 2** — `room.on("transcriptionReceived", ...)`:
+Switched to the Room EventEmitter event (supports multiple listeners). Filters
+`final: true` segments from remote participants only.
+
+**Problem**: `transcriptionReceived` fires for ALL remote participants (English AND
+pipeline agents — orchestrator, math, history). Combined with the existing
+`dataReceived(topic="transcript")` path, every turn appeared twice.
+
+**Iteration 3 — FINAL**: Removed the `transcriptionReceived` useEffect entirely.
+Diagnostic logs confirmed `text_content` is populated → `publish_data(topic="transcript")`
+already works correctly for all agents including English. The single `dataReceived`
+handler is sufficient.
+
+---
+
+### Fix C1 — Phantom "You" context messages: string-match approach
+
+Added `pending_context: Optional[str]` to `SessionUserdata`.
+Routing functions set `userdata.pending_context = question_summary`.
+`on_conversation_item` compared `msg.text_content.strip() == pending_context.strip()` and
+skipped publishing on match.
+
+**Problem**: LLM varies the wording and casing of `question_summary` between
+tool-call argument and actual injected text. Example:
+- Tool arg: `"Learn about George Washington"`
+- Injected text: `"learn about George Washington, which is a history topic."`
+→ strings don't match → suppression silently fails.
+
+---
+
+### Fix C2 — `agent/models/session_state.py` + `agent/tools/routing.py` + `agent/main.py`: skip counter ✓ FINAL
+
+Replaced `pending_context: Optional[str]` with `skip_next_user_turns: int = 0`.
+
+**Routing functions** (`_route_to_math_impl`, `_route_to_history_impl`,
+`_route_to_orchestrator_impl`) set `userdata.skip_next_user_turns = 1`.
+
+**`main.py` pipeline entrypoint** also sets `skip_next_user_turns = 1` when
+`pending_question` is recovered from re-dispatch metadata (orchestrator returning
+from English Realtime session).
+
+**`on_conversation_item`** in `main.py`: when `role == "user"` and
+`skip_next_user_turns > 0`, decrements counter and returns early — no content
+matching, always correct regardless of LLM phrasing.
+
+---
+
+## Final State of Modified Files
+
+| File | Change |
+|------|--------|
+| `agent/tools/routing.py` | No `interrupt()`, close at 3.5s, `skip_next_user_turns = 1` per routing fn |
+| `agent/agents/english_agent.py` | Diagnostic `logger.info` in `_handle_conversation_item` |
+| `agent/models/session_state.py` | `skip_next_user_turns: int = 0` field |
+| `agent/main.py` | Skip counter check in `on_conversation_item`; set counter on re-dispatch |
+| `frontend/hooks/useTranscript.ts` | Single `dataReceived` handler only (all extra useEffects removed) |
+
+---
+
+## Commits (in order)
+
+1. `fix(agent): interrupt pipeline TTS + lk.transcription frontend handler` — initial Fix A + B
+2. `fix(frontend): switch English transcript from registerTextStreamHandler to transcriptionReceived` — DataStreamError fix
+3. `fix(frontend): remove transcriptionReceived — conversation_item_added path works` — deduplication fix
+4. `fix(agent): restore orchestrator transition speech + fix phantom user transcript` — Fix A2 + Fix C1
+5. `fix(agent): replace string-match pending_context with skip_next_user_turns counter` — Fix C2 (final)
+
+---
+
+## Lessons Learned
+
+1. **`interrupt()` stops in-progress TTS** — calling it after dispatch also silences the transition message the orchestrator was mid-sentence on. Never call `interrupt()` unless you explicitly want to silence all current speech.
+
+2. **`registerTextStreamHandler` is single-subscriber** — `@livekit/components-react` owns `"lk.transcription"`. Use `room.on("transcriptionReceived", ...)` for multiple listeners, but be aware it fires for ALL agent participants.
+
+3. **Diagnostic logging before fixing** — checking live logs would have revealed `text_content` was populated in PLAN15, avoiding the incorrect `forwarded_text = ""` assumption and saving two frontend iterations.
+
+4. **LLM output is not deterministic** — never compare `question_summary` from a tool call against content generated at runtime. Use flags/counters, not string matching.
+
+5. **`transcriptionReceived` fires for pipeline agents too** — it's not English-only. The `publish_data(topic="transcript")` + `dataReceived` path is the reliable single source of truth for all agent transcript turns.
 
 ---
 
 ## Verification
 
 ```bash
-# 1. Tests still passing
+# 1. Tests still passing (72)
 PYTHONPATH=$(pwd) uv run --directory agent pytest tests/ -v
 
-# 2. Rebuild agents + frontend
-docker compose up -d --build agent agent-english frontend
-
-# 3. Check English agent log — diagnostic logging should show handler firing:
+# 2. English agent diagnostic logs confirm text_content populated:
 docker logs livekit-openai-realtime-demo-agent-english-1 --since "5m" | grep "English conversation_item_added"
-# Example: "English conversation_item_added: role=assistant text_content=None"
-# (confirms handler fires but text_content empty → explains broken conversation_item_added path)
+# Expected: role=assistant text_content='Sure! Let's dive into...' (NOT None)
 
-# 4. Check pipeline agent — should close at ~2s after English dispatch:
-docker logs livekit-openai-realtime-demo-agent-1 --since "5m" | grep -E "(Pipeline session closed|Dispatched)"
-# Expected: pipeline closes ~2-3s after "Dispatched learning-english" (not 18s)
+# 3. Pipeline closes ~3.5s after English dispatch (not 18s):
+docker logs livekit-openai-realtime-demo-agent-1 --since "5m" | grep "Pipeline session closed"
 
-# 5. End-to-end test:
-#    - Ask "what is an adjective?"
-#    - ONE voice responds (English tutor only)    ← Fix A (no 14s overlap)
-#    - Transcript shows English tutor turns       ← Fix B2 (lk.transcription path)
-#    - Pipeline closes ~2-3s after dispatch       ← Fix A
+# 4. End-to-end test:
+#    - Ask "what is an adjective?" → routed to English
+#    - Orchestrator says transition sentence before going silent    ← Fix A2 ✓
+#    - ONE voice responds after ~4s (no overlap)                   ← Fix A2 ✓
+#    - English transcript appears in panel                         ← Fix B ✓
+#    - No "You" bubble for question summary context               ← Fix C2 ✓
+#    - Ask "who was George Washington?" → routed to History
+#    - No "You" bubble for routing context                        ← Fix C2 ✓
 ```
 
 ---
 
 ## Key Files
 
-- `agent/tools/routing.py` — `_route_to_english_impl` (lines 134–236)
-- `agent/agents/english_agent.py` — `create_english_realtime_session` (lines 159–279)
-- `frontend/hooks/useTranscript.ts` — data channel + text stream transcript hook
+- `agent/tools/routing.py` — `_route_to_english_impl` + `_route_to_*_impl` routing functions
+- `agent/agents/english_agent.py` — `create_english_realtime_session`, `_handle_conversation_item`
+- `agent/models/session_state.py` — `SessionUserdata` with `skip_next_user_turns`
+- `agent/main.py` — `on_conversation_item` handler, pipeline entrypoint
+- `frontend/hooks/useTranscript.ts` — single `dataReceived` transcript hook
