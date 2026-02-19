@@ -97,7 +97,8 @@ async def pipeline_session_entrypoint(ctx: JobContext):
     # Recover session_id and question if this pipeline session was re-dispatched
     # after an English Realtime session.
     # Metadata format: "return_from_english:{id}|question:{text}" or "session:{id}|question:{text}"
-    meta = _parse_dispatch_metadata(ctx.room.metadata or "")
+    # FIXED (PLAN13): ctx.job.metadata holds dispatch request metadata, not ctx.room.metadata
+    meta = _parse_dispatch_metadata(ctx.job.metadata or "")
     recovered_session_id = meta.get("return_from_english")
     if not recovered_session_id:
         recovered_session_id = meta.get("session")  # plain session recovery
@@ -295,7 +296,8 @@ async def english_session_entrypoint(ctx: JobContext):
 
     # Recover or create session userdata
     # Metadata format: "session:{id}|question:{text}"
-    meta = _parse_dispatch_metadata(ctx.room.metadata or "")
+    # FIXED (PLAN13): ctx.job.metadata holds dispatch request metadata, not ctx.room.metadata
+    meta = _parse_dispatch_metadata(ctx.job.metadata or "")
     existing_session_id = meta.get("session")
     initial_question = meta.get("question", "")
 

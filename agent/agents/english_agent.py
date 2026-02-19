@@ -184,11 +184,10 @@ async def create_english_realtime_session(
     agent = EnglishAgent()
 
     # Post-hoc guardrail + transcript publishing for Realtime session.
-    # conversation_item_added delivers the ChatMessage directly as `item` (not an event wrapper).
-    @session.on("conversation_item_added")
-    async def on_item_added(item):
+    # FIXED (PLAN13): livekit-agents v1.4.2 rejects async callbacks in .on()
+    # Use a sync dispatcher that spawns an async task.
+    async def _handle_conversation_item(item):
         # FIXED (PLAN7): use text_content property — ChatContent is str | AudioContent | ImageContent.
-        # The old hasattr(part, "text") loop was always False for plain str objects.
         content_text = item.text_content or ""
 
         if item.role == "assistant" and content_text:
@@ -212,7 +211,7 @@ async def create_english_realtime_session(
                     session_userdata.session_id,
                     result.categories,
                 )
-                asyncio.create_task(guardrail_service.log_guardrail_event(
+                await guardrail_service.log_guardrail_event(
                     session_id=session_userdata.session_id,
                     agent_name="english",
                     original_text=content_text,
@@ -220,7 +219,7 @@ async def create_english_realtime_session(
                     categories=result.categories,
                     moderation_score=result.highest_score,
                     action_taken="audit_only",
-                ))
+                )
 
             # Publish assistant turn to data channel for real-time transcript display
             payload = json.dumps({
@@ -231,10 +230,8 @@ async def create_english_realtime_session(
                 "turn": getattr(session_userdata, "turn_number", 0),
                 "session_id": session_userdata.session_id,
             })
-            asyncio.create_task(
-                room.local_participant.publish_data(
-                    payload.encode(), topic="transcript"
-                )
+            await room.local_participant.publish_data(
+                payload.encode(), topic="transcript"
             )
 
         elif item.role == "user" and content_text:
@@ -256,11 +253,13 @@ async def create_english_realtime_session(
                 "turn": 0,
                 "session_id": session_userdata.session_id,
             })
-            asyncio.create_task(
-                room.local_participant.publish_data(
-                    payload.encode(), topic="transcript"
-                )
+            await room.local_participant.publish_data(
+                payload.encode(), topic="transcript"
             )
+
+    @session.on("conversation_item_added")
+    def on_item_added(item):
+        asyncio.create_task(_handle_conversation_item(item))
 
     await session.start(agent, room=room)
 
