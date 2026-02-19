@@ -32,6 +32,7 @@ Fallback: If two-session coordination is too complex, degrade to:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from typing import Optional
@@ -180,41 +181,75 @@ async def create_english_realtime_session(
 
     agent = EnglishAgent()
 
-    # Post-hoc guardrail for Realtime: audit log on conversation_item_added
+    # Post-hoc guardrail + transcript publishing for Realtime session.
+    # conversation_item_added delivers the ChatMessage directly as `item` (not an event wrapper).
     @session.on("conversation_item_added")
     async def on_item_added(item):
-        if item.role == "assistant" and item.content:
-            content_text = ""
-            for part in item.content:
-                if hasattr(part, "text") and part.text:
-                    content_text += part.text
+        # FIXED (PLAN7): use text_content property — ChatContent is str | AudioContent | ImageContent.
+        # The old hasattr(part, "text") loop was always False for plain str objects.
+        content_text = item.text_content or ""
 
-            if content_text:
-                # Check for guardrail violations in the Realtime transcript
-                result = await guardrail_service.check(content_text)
-                if result.flagged:
-                    logger.warning(
-                        "English Realtime: flagged content detected post-hoc "
-                        "[session=%s, categories=%s]",
-                        session_userdata.session_id,
-                        result.categories,
-                    )
-                    # Log for audit — cannot rewrite post-TTS in Realtime mode
-                    import asyncio
-                    asyncio.create_task(guardrail_service.log_guardrail_event(
-                        session_id=session_userdata.session_id,
-                        agent_name="english",
-                        original_text=content_text,
-                        rewritten_text="[post-hoc detection only — Realtime API]",
-                        categories=result.categories,
-                        moderation_score=result.highest_score,
-                        action_taken="audit_only",
-                    ))
+        if item.role == "assistant" and content_text:
+            # Guardrail check (post-hoc — cannot interrupt Realtime audio already playing)
+            result = await guardrail_service.check(content_text)
+            if result.flagged:
+                logger.warning(
+                    "English Realtime: flagged content detected post-hoc "
+                    "[session=%s, categories=%s]",
+                    session_userdata.session_id,
+                    result.categories,
+                )
+                asyncio.create_task(guardrail_service.log_guardrail_event(
+                    session_id=session_userdata.session_id,
+                    agent_name="english",
+                    original_text=content_text,
+                    rewritten_text="[post-hoc detection only — Realtime API]",
+                    categories=result.categories,
+                    moderation_score=result.highest_score,
+                    action_taken="audit_only",
+                ))
+
+            # Publish assistant turn to data channel for real-time transcript display
+            payload = json.dumps({
+                "speaker": "english",
+                "role": "assistant",
+                "content": content_text,
+                "subject": "english",
+                "turn": getattr(session_userdata, "turn_number", 0),
+                "session_id": session_userdata.session_id,
+            })
+            asyncio.create_task(
+                room.local_participant.publish_data(
+                    payload.encode(), topic="transcript"
+                )
+            )
+
+        elif item.role == "user" and content_text:
+            # Publish user turns so the transcript is complete on both sides
+            payload = json.dumps({
+                "speaker": "student",
+                "role": "user",
+                "content": content_text,
+                "subject": "english",
+                "turn": 0,
+                "session_id": session_userdata.session_id,
+            })
+            asyncio.create_task(
+                room.local_participant.publish_data(
+                    payload.encode(), topic="transcript"
+                )
+            )
 
     await session.start(agent, room=room)
 
     if initial_question:
-        # Immediately answer the question that caused routing to English
-        session.generate_reply(user_input=initial_question)
+        # Delay to allow the Realtime WebRTC audio pipeline to fully establish (~1–2s).
+        # Calling generate_reply() immediately after session.start() results in silence
+        # because the audio channel is not yet ready to transmit the reply.
+        async def _greet_with_initial_question():
+            await asyncio.sleep(1.5)
+            session.generate_reply(user_input=initial_question)
+
+        asyncio.create_task(_greet_with_initial_question())
 
     return session

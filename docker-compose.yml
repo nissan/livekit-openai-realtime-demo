@@ -396,6 +396,8 @@ services:
         condition: service_started
       langfuse:
         condition: service_healthy
+      langfuse-worker:
+        condition: service_started
       supabase-kong:
         condition: service_healthy
     networks:

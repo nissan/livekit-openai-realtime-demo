@@ -155,11 +155,10 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         role = msg.role  # "user" | "assistant"
         speaker = "student" if role == "user" else userdata.current_subject or "orchestrator"
 
-        content = ""
-        if hasattr(msg, "content"):
-            for part in msg.content:
-                if hasattr(part, "text") and part.text:
-                    content += part.text
+        # FIXED (PLAN7): ChatContent is str | AudioContent | ImageContent.
+        # The old hasattr(part, "text") check was always False for plain str objects.
+        # Use the built-in text_content property which correctly filters isinstance(c, str).
+        content = msg.text_content or ""
 
         if content:
             # Emit OTEL span with session/user/subject context for Langfuse filtering
