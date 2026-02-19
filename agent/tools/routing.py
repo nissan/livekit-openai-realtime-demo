@@ -184,7 +184,7 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
         pipeline_session = context.session
 
         async def _close_pipeline_after_english_dispatch():
-            await asyncio.sleep(8.0)
+            await asyncio.sleep(12.0)
             try:
                 await pipeline_session.aclose()
                 logger.info("Pipeline session closed after English dispatch [session=%s]", session_id)

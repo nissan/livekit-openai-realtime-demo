@@ -174,7 +174,6 @@ async def create_english_realtime_session(
         llm=realtime.RealtimeModel(
             model=_REALTIME_MODEL,
             voice="shimmer",
-            instructions=ENGLISH_SYSTEM_PROMPT,
             modalities=["audio", "text"],
             input_audio_transcription=InputAudioTranscription(
                 model="gpt-4o-mini-transcribe",
