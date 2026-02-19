@@ -64,3 +64,8 @@ agent/*.onnx
 .supabase/
 supabase/.branches/
 supabase/.temp/
+
+# Playwright test artifacts
+frontend/playwright-report/
+frontend/test-results/
+frontend/tsconfig.tsbuildinfo
