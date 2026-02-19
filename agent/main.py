@@ -161,6 +161,13 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         msg = event.item
         role = msg.role  # "user" | "assistant"
         if role == "user":
+            # Skip phantom "user" messages injected by generate_reply(user_input=pending_q)
+            # in GuardedAgent.on_enter() — these are routing context, not real student speech.
+            # The student's original question is already in the transcript; suppress the duplicate.
+            pending = getattr(userdata, "pending_context", None)
+            if pending and (msg.text_content or "").strip() == pending.strip():
+                userdata.pending_context = None  # consumed — clear for next routing event
+                return
             speaker = "student"
         else:
             # speaking_agent is set by GuardedAgent.on_enter() AFTER the transition message

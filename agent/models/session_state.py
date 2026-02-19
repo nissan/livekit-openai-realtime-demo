@@ -26,6 +26,7 @@ class SessionUserdata:
     escalated: bool = False
     escalation_reason: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
+    pending_context: Optional[str] = None  # set by routing fns; suppresses phantom "user" transcript entry injected via generate_reply(user_input=)
 
     def advance_turn(self) -> int:
         """Increment and return the current turn number."""

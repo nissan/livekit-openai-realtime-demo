@@ -89,6 +89,7 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
     logger.info("Routing to MathAgent [from=%s, session=%s]", from_agent, session_id)
     specialist = MathAgent(chat_ctx=context.session.history)
     specialist._pending_question = question_summary
+    userdata.pending_context = question_summary  # suppress phantom "user" transcript entry
     return (specialist, "Let me connect you with our Mathematics tutor!")
 
 
@@ -128,6 +129,7 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
     logger.info("Routing to HistoryAgent [from=%s, session=%s]", from_agent, session_id)
     specialist = HistoryAgent(chat_ctx=context.session.history)
     specialist._pending_question = question_summary
+    userdata.pending_context = question_summary  # suppress phantom "user" transcript entry
     return (specialist, "Let me connect you with our History tutor!")
 
 
@@ -180,10 +182,10 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
 
         # Close this pipeline session so it cannot compete with the English Realtime
         # session (same room, both sessions receive student audio via STT).
-        # FIXED (PLAN16): interrupt pipeline TTS immediately after dispatch, then close
-        # at 2s. The English agent starts speaking at ~4s (3s delay + ~1s WebRTC) so
-        # there is no overlap. The previous event-driven close (PLAN15) fired too late
-        # (~13s after dispatch) because the transition TTS takes ~13s to commit.
+        # PLAN16: interrupt() was too aggressive — it silenced the orchestrator's
+        # transition message immediately. Instead, close after 3.5s: the orchestrator
+        # gets ~3.5s to speak its handoff sentence, then the pipeline closes 0.5s before
+        # English starts (~4s after dispatch: 3s sleep + ~1s WebRTC pipeline setup).
         pipeline_session = context.session
         _close_done = asyncio.Event()
 
@@ -191,18 +193,14 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
             if _close_done.is_set():
                 return
             _close_done.set()
-            await asyncio.sleep(2.0)  # let interrupt propagate + WebRTC drain
+            await asyncio.sleep(3.5)  # let orchestrator speak transition sentence; English starts at ~4s
             try:
                 await pipeline_session.aclose()
                 logger.info("Pipeline session closed after English dispatch [session=%s]", session_id)
             except Exception:
                 logger.exception("Failed to close pipeline session after English routing")
 
-        # Stop the pipeline's current TTS speech immediately — prevents 14s overlap
-        # where both pipeline and English agents speak simultaneously.
-        pipeline_session.interrupt()
-
-        # Close 2s after interrupt — well before English speaks (~4s after dispatch)
+        # Close 3.5s after dispatch — orchestrator speaks its transition; closes before English audio
         asyncio.create_task(_do_close_pipeline())
 
         # 30s safety-net fallback in case the 2s close path fails
@@ -278,6 +276,7 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
     )
     orchestrator = OrchestratorAgent(chat_ctx=context.session.history)
     orchestrator._pending_question = reason
+    userdata.pending_context = reason  # suppress phantom "user" transcript entry
     return (orchestrator, "Let me pass you back to your main tutor!")
 
 
