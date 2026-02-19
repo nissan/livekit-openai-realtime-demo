@@ -104,6 +104,14 @@ class GuardedAgent(Agent):
         - OrchestratorAgent: greets the student on session start
         - Specialist agents: immediately answers the pending question from history
         """
+        # Update speaking_agent FIRST so transcript handler knows who is actively speaking.
+        # This fires AFTER the transition message ("Let me connect you with...") has been
+        # emitted, so the transition message correctly shows the PREVIOUS speaker.
+        try:
+            self.session.userdata.speaking_agent = self.agent_name
+        except AttributeError:
+            pass
+
         # OTEL span to mark agent activation — visible in Langfuse timeline
         try:
             session_id = self.session.userdata.session_id

@@ -403,6 +403,36 @@ services:
     networks:
       - internal
 
+  agent-english:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      AGENT_TYPE: english
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL:-http://supabase-kong:8000}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.mtyP0JVMJMVv6lG_6nro9vLvAcYv9I1b6RmC_ktydbs}
+      LANGFUSE_HOST: http://langfuse:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-dev}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-dev}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://langfuse:3000/api/public/otel/v1/traces
+    depends_on:
+      livekit:
+        condition: service_started
+      langfuse:
+        condition: service_healthy
+      langfuse-worker:
+        condition: service_started
+      supabase-kong:
+        condition: service_healthy
+    networks:
+      - internal
+
   frontend:
     build:
       context: ./frontend

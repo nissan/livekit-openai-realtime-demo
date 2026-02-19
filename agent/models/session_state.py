@@ -20,6 +20,7 @@ class SessionUserdata:
     student_identity: str = ""
     room_name: str = ""
     current_subject: Optional[str] = None          # "math" | "english" | "history" | None
+    speaking_agent: Optional[str] = None           # tracks who is currently speaking (for transcript)
     previous_subjects: list[str] = field(default_factory=list)
     turn_number: int = 0
     escalated: bool = False

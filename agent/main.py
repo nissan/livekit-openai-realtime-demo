@@ -159,7 +159,12 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         # v1.4: event is ConversationItemAddedEvent; event.item is the ChatMessage
         msg = event.item
         role = msg.role  # "user" | "assistant"
-        speaker = "student" if role == "user" else userdata.current_subject or "orchestrator"
+        if role == "user":
+            speaker = "student"
+        else:
+            # speaking_agent is set by GuardedAgent.on_enter() AFTER the transition message
+            # fires, so it correctly identifies who SAID the message (not who we routed TO).
+            speaker = userdata.speaking_agent or userdata.current_subject or "orchestrator"
 
         # FIXED (PLAN7): ChatContent is str | AudioContent | ImageContent.
         # The old hasattr(part, "text") check was always False for plain str objects.
@@ -347,10 +352,21 @@ if __name__ == "__main__":
     # Set up Langfuse OTEL tracing before starting workers
     setup_langfuse_tracing()
 
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=pipeline_session_entrypoint,
-            prewarm_fnc=prewarm,
-            agent_name="learning-orchestrator",
-        ),
-    )
+    agent_type = os.environ.get("AGENT_TYPE", "orchestrator")
+
+    if agent_type == "english":
+        cli.run_app(
+            WorkerOptions(
+                entrypoint_fnc=english_session_entrypoint,
+                agent_name="learning-english",
+                # No prewarm — RealtimeModel handles audio natively, no VAD needed
+            ),
+        )
+    else:
+        cli.run_app(
+            WorkerOptions(
+                entrypoint_fnc=pipeline_session_entrypoint,
+                prewarm_fnc=prewarm,
+                agent_name="learning-orchestrator",
+            ),
+        )
