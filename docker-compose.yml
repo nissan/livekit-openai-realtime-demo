@@ -131,6 +131,12 @@ services:
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_USER:-minio}
       LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-minio_secret}
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://$(hostname):3000/api/public/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       langfuse-db:
         condition: service_healthy
@@ -141,6 +147,35 @@ services:
     networks:
       - internal
       - public
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse_secret}@langfuse-db:5432/langfuse
+      CLICKHOUSE_URL: http://clickhouse:${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}@langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}@langfuse-clickhouse:9000
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse_secret}
+      REDIS_CONNECTION_STRING: redis://redis:6379
+      SALT: ${LANGFUSE_SALT:-local-dev-salt-not-for-production}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse-events
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-minio_secret}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      langfuse:
+        condition: service_healthy
+      langfuse-db:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+    networks:
+      - internal
 
   ##############################################################################
   # Supabase local stack
@@ -341,9 +376,12 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-dev}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://langfuse:3000/api/public/otel/v1/traces
     depends_on:
-      - livekit
-      - langfuse
-      - supabase-kong
+      livekit:
+        condition: service_started
+      langfuse:
+        condition: service_healthy
+      supabase-kong:
+        condition: service_started
     networks:
       - internal
 

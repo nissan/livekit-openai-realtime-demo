@@ -94,3 +94,12 @@ class GuardedAgent(Agent):
                 yield frame
 
         return _guardrailed_audio()
+
+    async def on_enter(self) -> None:
+        """Called by LiveKit when this agent becomes active.
+
+        Proactively generates a reply to the current conversation state:
+        - OrchestratorAgent: greets the student on session start
+        - Specialist agents: immediately answers the pending question from history
+        """
+        await self.session.generate_reply()

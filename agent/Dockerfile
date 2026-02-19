@@ -2,7 +2,9 @@
 # Python 3.11 — livekit-agents v1.4 drops Python 3.9 support (see PLAN.md Gotcha #2)
 FROM python:3.11-slim
 
-WORKDIR /app
+# Use /workspace/agent so the parent /workspace can be added to PYTHONPATH,
+# making `from agent.agents.xxx import ...` resolve correctly.
+WORKDIR /workspace/agent
 
 # System deps required by livekit-ffi native library (GLib, audio pipeline)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -18,6 +20,10 @@ COPY pyproject.toml ./
 
 # Install dependencies
 RUN uv pip install --system --no-cache -e .
+
+# Add /workspace to PYTHONPATH so `from agent.agents.xxx` resolves to
+# /workspace/agent/agents/xxx — matching the host development import structure.
+ENV PYTHONPATH=/workspace
 
 # Download Silero VAD weights at build time to avoid 200MB download on startup
 # See PLAN.md: Latency Strategy — Download VAD weights at Docker build time

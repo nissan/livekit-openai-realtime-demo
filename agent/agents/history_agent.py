@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import os
 
-from livekit.agents import llm
+from livekit.agents import function_tool, llm, RunContext
 from livekit.plugins import openai
 
 from agent.agents.base import GuardedAgent
@@ -45,6 +45,9 @@ When discussing sensitive topics (wars, slavery, genocide, etc.):
 
 Topics: world history, ancient civilisations, medieval period, industrial revolution,
 20th century conflicts, political history, cultural history, geography and its influence.
+
+If asked about mathematics, English, or anything outside history,
+route immediately to the appropriate specialist — do not attempt to answer.
 """
 
 # Default to gpt-5.2 — update via env var without code changes
@@ -67,3 +70,35 @@ class HistoryAgent(GuardedAgent):
             chat_ctx=chat_ctx,
         )
         logger.info("HistoryAgent initialised (model=%s)", model)
+
+    @function_tool(description="Route the student to the mathematics specialist")
+    async def route_to_math(
+        self,
+        context: RunContext,
+        question_summary: str,
+    ) -> tuple:
+        from agent.tools.routing import _route_to_math_impl
+        return await _route_to_math_impl(self, context, question_summary)
+
+    @function_tool(description="Route the student to the English language and literature specialist")
+    async def route_to_english(
+        self,
+        context: RunContext,
+        question_summary: str,
+    ) -> tuple:
+        from agent.tools.routing import _route_to_english_impl
+        return await _route_to_english_impl(self, context, question_summary)
+
+    @function_tool(
+        description=(
+            "Escalate to a human teacher when the student is distressed, "
+            "asks something inappropriate, or you are unable to help effectively"
+        )
+    )
+    async def escalate_to_teacher(
+        self,
+        context: RunContext,
+        reason: str,
+    ) -> str:
+        from agent.tools.routing import _escalate_impl
+        return await _escalate_impl(self, context, reason)

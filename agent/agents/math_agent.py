@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from livekit.agents import llm
+from livekit.agents import function_tool, llm, RunContext
 from livekit.plugins import anthropic
 
 from agent.agents.base import GuardedAgent
@@ -33,6 +33,9 @@ number theory, and problem-solving strategies.
 
 Always verify your calculations before responding. If you make an error, acknowledge
 it clearly and correct it.
+
+If asked about history, English, or anything outside mathematics,
+route immediately to the appropriate specialist — do not attempt to answer.
 """
 
 
@@ -54,3 +57,35 @@ class MathAgent(GuardedAgent):
             chat_ctx=chat_ctx,
         )
         logger.info("MathAgent initialised (claude-sonnet-4-6, temp=0.3)")
+
+    @function_tool(description="Route the student to the history specialist")
+    async def route_to_history(
+        self,
+        context: RunContext,
+        question_summary: str,
+    ) -> tuple:
+        from agent.tools.routing import _route_to_history_impl
+        return await _route_to_history_impl(self, context, question_summary)
+
+    @function_tool(description="Route the student to the English language and literature specialist")
+    async def route_to_english(
+        self,
+        context: RunContext,
+        question_summary: str,
+    ) -> tuple:
+        from agent.tools.routing import _route_to_english_impl
+        return await _route_to_english_impl(self, context, question_summary)
+
+    @function_tool(
+        description=(
+            "Escalate to a human teacher when the student is distressed, "
+            "asks something inappropriate, or you are unable to help effectively"
+        )
+    )
+    async def escalate_to_teacher(
+        self,
+        context: RunContext,
+        reason: str,
+    ) -> str:
+        from agent.tools.routing import _escalate_impl
+        return await _escalate_impl(self, context, reason)
