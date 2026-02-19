@@ -154,13 +154,13 @@ class TestRoutingSpanEnrichment:
         assert span_calls["previous_subject"] == "english"
 
 
-class TestSpecialistCrossRouting:
-    async def test_math_agent_can_route_to_history(self):
-        """MathAgent should hand off to HistoryAgent for history questions."""
+class TestSpecialistHandback:
+    async def test_math_agent_can_route_back_to_orchestrator(self):
+        """MathAgent handback sets current_subject to 'orchestrator' and returns OrchestratorAgent."""
         context, userdata = _make_mock_context()
         userdata.route_to("math")  # already in math session
 
-        mock_history_agent = MagicMock()
+        mock_orchestrator = MagicMock()
 
         mock_span = MagicMock()
         mock_ctx_manager = MagicMock()
@@ -168,12 +168,12 @@ class TestSpecialistCrossRouting:
         mock_ctx_manager.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("agent.agents.history_agent.HistoryAgent") as MockHistory,
+            patch("agent.agents.orchestrator.OrchestratorAgent") as MockOrchestrator,
             patch("agent.tools.routing.tracer") as mock_tracer,
             patch("agent.tools.routing.transcript_store"),
             patch("asyncio.create_task"),
         ):
-            MockHistory.return_value = mock_history_agent
+            MockOrchestrator.return_value = mock_orchestrator
             mock_tracer.start_as_current_span.return_value = mock_ctx_manager
 
             from agent.agents.math_agent import MathAgent
@@ -181,22 +181,22 @@ class TestSpecialistCrossRouting:
             with patch.object(MathAgent.__bases__[0], "__init__", return_value=None):
                 instance = object.__new__(MathAgent)
                 instance.agent_name = "math"
-                result = await MathAgent.route_to_history(
-                    instance, context, "Tell me about Egyptian pyramids"
+                result = await MathAgent.route_back_to_orchestrator(
+                    instance, context, "Finished explaining multiplication"
                 )
 
-        assert userdata.current_subject == "history"
+        assert userdata.current_subject == "orchestrator"
         assert userdata.turn_number == 1
         agent_result, announcement = result
-        assert agent_result is mock_history_agent
-        assert "History" in announcement
+        assert agent_result is mock_orchestrator
+        assert "tutor" in announcement.lower()
 
-    async def test_history_agent_can_route_to_math(self):
-        """HistoryAgent should hand off to MathAgent for math questions."""
+    async def test_history_agent_can_route_back_to_orchestrator(self):
+        """HistoryAgent handback sets current_subject to 'orchestrator' and returns OrchestratorAgent."""
         context, userdata = _make_mock_context()
         userdata.route_to("history")  # already in history session
 
-        mock_math_agent = MagicMock()
+        mock_orchestrator = MagicMock()
 
         mock_span = MagicMock()
         mock_ctx_manager = MagicMock()
@@ -204,12 +204,12 @@ class TestSpecialistCrossRouting:
         mock_ctx_manager.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("agent.agents.math_agent.MathAgent") as MockMath,
+            patch("agent.agents.orchestrator.OrchestratorAgent") as MockOrchestrator,
             patch("agent.tools.routing.tracer") as mock_tracer,
             patch("agent.tools.routing.transcript_store"),
             patch("asyncio.create_task"),
         ):
-            MockMath.return_value = mock_math_agent
+            MockOrchestrator.return_value = mock_orchestrator
             mock_tracer.start_as_current_span.return_value = mock_ctx_manager
 
             from agent.agents.history_agent import HistoryAgent
@@ -217,20 +217,20 @@ class TestSpecialistCrossRouting:
             with patch.object(HistoryAgent.__bases__[0], "__init__", return_value=None):
                 instance = object.__new__(HistoryAgent)
                 instance.agent_name = "history"
-                result = await HistoryAgent.route_to_math(
-                    instance, context, "What is 7 times 8?"
+                result = await HistoryAgent.route_back_to_orchestrator(
+                    instance, context, "Finished explaining WW2"
                 )
 
-        assert userdata.current_subject == "math"
+        assert userdata.current_subject == "orchestrator"
         assert userdata.turn_number == 1
         agent_result, announcement = result
-        assert agent_result is mock_math_agent
-        assert "Mathematics" in announcement
+        assert agent_result is mock_orchestrator
+        assert "tutor" in announcement.lower()
 
-    async def test_from_agent_attribute_reflects_actual_caller(self):
-        """OTEL span from_agent should show which specialist is doing the routing."""
+    async def test_previous_subject_captured_before_route_update(self):
+        """OTEL span must show previous_subject='math' and to_agent='orchestrator'."""
         context, userdata = _make_mock_context()
-        userdata.route_to("math")
+        userdata.route_to("math")  # set subject to math before handback
 
         mock_span = MagicMock()
         mock_ctx_manager = MagicMock()
@@ -238,7 +238,7 @@ class TestSpecialistCrossRouting:
         mock_ctx_manager.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("agent.agents.history_agent.HistoryAgent"),
+            patch("agent.agents.orchestrator.OrchestratorAgent"),
             patch("agent.tools.routing.tracer") as mock_tracer,
             patch("agent.tools.routing.transcript_store"),
             patch("asyncio.create_task"),
@@ -250,10 +250,40 @@ class TestSpecialistCrossRouting:
             with patch.object(MathAgent.__bases__[0], "__init__", return_value=None):
                 instance = object.__new__(MathAgent)
                 instance.agent_name = "math"
-                await MathAgent.route_to_history(
-                    instance, context, "Egyptian pyramids question"
+                await MathAgent.route_back_to_orchestrator(
+                    instance, context, "Topic complete"
                 )
 
         span_calls = {c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list}
         assert span_calls.get("from_agent") == "math"
-        assert span_calls.get("to_agent") == "history"
+        assert span_calls.get("to_agent") == "orchestrator"
+        assert span_calls.get("previous_subject") == "math"
+
+    async def test_handback_span_uses_routing_decision_name(self):
+        """Handback span must be created with 'routing.decision' span name."""
+        context, userdata = _make_mock_context()
+        userdata.route_to("history")
+
+        mock_span = MagicMock()
+        mock_ctx_manager = MagicMock()
+        mock_ctx_manager.__enter__ = MagicMock(return_value=mock_span)
+        mock_ctx_manager.__exit__ = MagicMock(return_value=False)
+
+        with (
+            patch("agent.agents.orchestrator.OrchestratorAgent"),
+            patch("agent.tools.routing.tracer") as mock_tracer,
+            patch("agent.tools.routing.transcript_store"),
+            patch("asyncio.create_task"),
+        ):
+            mock_tracer.start_as_current_span.return_value = mock_ctx_manager
+
+            from agent.agents.history_agent import HistoryAgent
+
+            with patch.object(HistoryAgent.__bases__[0], "__init__", return_value=None):
+                instance = object.__new__(HistoryAgent)
+                instance.agent_name = "history"
+                await HistoryAgent.route_back_to_orchestrator(
+                    instance, context, "Topic complete"
+                )
+
+        mock_tracer.start_as_current_span.assert_called_once_with("routing.decision")

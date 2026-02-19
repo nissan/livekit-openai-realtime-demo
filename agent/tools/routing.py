@@ -165,6 +165,49 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
     return "Let me connect you with our English tutor right away!"
 
 
+async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
+    """Hand back to OrchestratorAgent after a specialist has answered a question.
+
+    Called by specialist agents (MathAgent, HistoryAgent) once they have fully
+    addressed the student's question. The orchestrator re-enters with full
+    conversation history and decides all routing for the next question.
+    """
+    from agent.agents.orchestrator import OrchestratorAgent  # lazy — avoids circular import
+
+    userdata = context.session.userdata
+    session_id = userdata.session_id
+    from_agent = getattr(agent, "agent_name", "unknown")
+    previous_subject = userdata.current_subject or ""   # capture BEFORE route_to()
+    turn_number = userdata.advance_turn()
+    userdata.route_to("orchestrator")
+
+    with tracer.start_as_current_span("routing.decision") as span:
+        span.set_attribute("session_id", session_id)
+        span.set_attribute("from_agent", from_agent)
+        span.set_attribute("to_agent", "orchestrator")
+        span.set_attribute("turn_number", turn_number)
+        span.set_attribute("question_summary", reason)
+        span.set_attribute("previous_subject", previous_subject)
+        span.set_attribute("langfuse.session_id", session_id)
+        span.set_attribute("langfuse.user_id", userdata.student_identity)
+
+    asyncio.create_task(transcript_store.save_routing_decision(
+        session_id=session_id,
+        turn_number=turn_number,
+        from_agent=from_agent,
+        to_agent="orchestrator",
+        question_summary=reason,
+    ))
+
+    logger.info(
+        "Returning to OrchestratorAgent [from=%s, session=%s]", from_agent, session_id
+    )
+    return (
+        OrchestratorAgent(chat_ctx=context.session.history),
+        "Let me pass you back to your main tutor!",
+    )
+
+
 async def _escalate_impl(agent, context: RunContext, reason: str) -> str:
     """Escalate to a human teacher."""
     userdata = context.session.userdata

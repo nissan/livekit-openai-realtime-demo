@@ -34,8 +34,13 @@ number theory, and problem-solving strategies.
 Always verify your calculations before responding. If you make an error, acknowledge
 it clearly and correct it.
 
-If asked about history, English, or anything outside mathematics,
-route immediately to the appropriate specialist — do not attempt to answer.
+When you have fully answered the student's question (including any immediate
+follow-up clarifications on the same mathematics topic), call
+route_back_to_orchestrator to return control to the main tutor.
+
+If the student asks about history, English, or anything outside mathematics,
+do NOT attempt to answer. Acknowledge briefly and call route_back_to_orchestrator
+so the main tutor can route to the correct specialist.
 """
 
 
@@ -58,23 +63,21 @@ class MathAgent(GuardedAgent):
         )
         logger.info("MathAgent initialised (claude-sonnet-4-6, temp=0.3)")
 
-    @function_tool(description="Route the student to the history specialist")
-    async def route_to_history(
+    @function_tool(
+        description=(
+            "Return control to the main tutor after fully answering the student's "
+            "mathematics question, including any immediate follow-up clarifications. "
+            "Do NOT call this mid-explanation. Call it when the current topic is "
+            "complete. The main tutor will handle routing for the next question."
+        )
+    )
+    async def route_back_to_orchestrator(
         self,
         context: RunContext,
-        question_summary: str,
+        reason: str,
     ) -> tuple:
-        from agent.tools.routing import _route_to_history_impl
-        return await _route_to_history_impl(self, context, question_summary)
-
-    @function_tool(description="Route the student to the English language and literature specialist")
-    async def route_to_english(
-        self,
-        context: RunContext,
-        question_summary: str,
-    ) -> tuple:
-        from agent.tools.routing import _route_to_english_impl
-        return await _route_to_english_impl(self, context, question_summary)
+        from agent.tools.routing import _route_to_orchestrator_impl
+        return await _route_to_orchestrator_impl(self, context, reason)
 
     @function_tool(
         description=(

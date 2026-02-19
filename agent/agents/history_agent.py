@@ -46,8 +46,13 @@ When discussing sensitive topics (wars, slavery, genocide, etc.):
 Topics: world history, ancient civilisations, medieval period, industrial revolution,
 20th century conflicts, political history, cultural history, geography and its influence.
 
-If asked about mathematics, English, or anything outside history,
-route immediately to the appropriate specialist — do not attempt to answer.
+When you have fully answered the student's question (including any immediate
+follow-up clarifications on the same history topic), call
+route_back_to_orchestrator to return control to the main tutor.
+
+If the student asks about mathematics, English, or anything outside history,
+do NOT attempt to answer. Acknowledge briefly and call route_back_to_orchestrator
+so the main tutor can route to the correct specialist.
 """
 
 # Default to gpt-5.2 — update via env var without code changes
@@ -71,23 +76,21 @@ class HistoryAgent(GuardedAgent):
         )
         logger.info("HistoryAgent initialised (model=%s)", model)
 
-    @function_tool(description="Route the student to the mathematics specialist")
-    async def route_to_math(
+    @function_tool(
+        description=(
+            "Return control to the main tutor after fully answering the student's "
+            "history question, including any immediate follow-up clarifications. "
+            "Do NOT call this mid-explanation. Call it when the current topic is "
+            "complete. The main tutor will handle routing for the next question."
+        )
+    )
+    async def route_back_to_orchestrator(
         self,
         context: RunContext,
-        question_summary: str,
+        reason: str,
     ) -> tuple:
-        from agent.tools.routing import _route_to_math_impl
-        return await _route_to_math_impl(self, context, question_summary)
-
-    @function_tool(description="Route the student to the English language and literature specialist")
-    async def route_to_english(
-        self,
-        context: RunContext,
-        question_summary: str,
-    ) -> tuple:
-        from agent.tools.routing import _route_to_english_impl
-        return await _route_to_english_impl(self, context, question_summary)
+        from agent.tools.routing import _route_to_orchestrator_impl
+        return await _route_to_orchestrator_impl(self, context, reason)
 
     @function_tool(
         description=(
