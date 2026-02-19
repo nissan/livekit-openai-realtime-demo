@@ -120,4 +120,8 @@ class GuardedAgent(Agent):
         except Exception:
             logger.debug("%s.on_enter: could not inspect history", self.agent_name)
 
-        await self.session.generate_reply()
+        pending_q = getattr(self, "_pending_question", None)
+        if pending_q:
+            await self.session.generate_reply(user_input=pending_q)
+        else:
+            await self.session.generate_reply()

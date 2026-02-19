@@ -41,6 +41,16 @@ from agent.services.langfuse_setup import setup_langfuse_tracing, get_tracer
 logger = logging.getLogger(__name__)
 _tracer = None  # initialised after setup_langfuse_tracing() in __main__
 
+
+def _parse_dispatch_metadata(metadata: str) -> dict:
+    """Parse 'key:value|key:value' dispatch metadata into a dict."""
+    result = {}
+    for part in metadata.split("|"):
+        if ":" in part:
+            key, _, value = part.partition(":")
+            result[key] = value
+    return result
+
 # -------------------------------------------------------------------
 # Worker startup — download model weights before first request
 # -------------------------------------------------------------------
@@ -84,12 +94,17 @@ async def pipeline_session_entrypoint(ctx: JobContext):
     student_identity = participant.identity if participant else "unknown-student"
     room_name = ctx.room.name
 
-    # Recover session_id if this pipeline session was re-dispatched after an
-    # English Realtime session (english_agent.py sets metadata = "return_from_english:{id}")
-    ctx_metadata = ctx.room.metadata or ""
-    recovered_session_id = None
-    if ctx_metadata.startswith("return_from_english:"):
-        recovered_session_id = ctx_metadata.split(":", 1)[1]
+    # Recover session_id and question if this pipeline session was re-dispatched
+    # after an English Realtime session.
+    # Metadata format: "return_from_english:{id}|question:{text}" or "session:{id}|question:{text}"
+    meta = _parse_dispatch_metadata(ctx.room.metadata or "")
+    recovered_session_id = meta.get("return_from_english")
+    if not recovered_session_id:
+        recovered_session_id = meta.get("session")  # plain session recovery
+
+    pending_question = meta.get("question", "")
+
+    if recovered_session_id:
         logger.info("Recovering session_id from English return: %s", recovered_session_id)
 
     # Initialise session state
@@ -185,10 +200,10 @@ async def pipeline_session_entrypoint(ctx: JobContext):
 
     # Start session with OrchestratorAgent
     # v1.4 API: agent is first positional arg; participant is not accepted
-    await session.start(
-        OrchestratorAgent(),
-        room=ctx.room,
-    )
+    orchestrator = OrchestratorAgent()
+    if pending_question:
+        orchestrator._pending_question = pending_question
+    await session.start(orchestrator, room=ctx.room)
 
     # Wait for session to complete — v1.4 has no session.wait(); use close event
     session_closed = asyncio.Event()
@@ -257,11 +272,10 @@ async def english_session_entrypoint(ctx: JobContext):
     room_name = ctx.room.name
 
     # Recover or create session userdata
-    # Session_id may be passed in room metadata for context continuity
-    metadata = ctx.room.metadata or ""
-    existing_session_id = None
-    if metadata.startswith("session:"):
-        existing_session_id = metadata.split(":", 1)[1]
+    # Metadata format: "session:{id}|question:{text}"
+    meta = _parse_dispatch_metadata(ctx.room.metadata or "")
+    existing_session_id = meta.get("session")
+    initial_question = meta.get("question", "")
 
     userdata = SessionUserdata(
         student_identity=student_identity,
@@ -280,6 +294,7 @@ async def english_session_entrypoint(ctx: JobContext):
         room=ctx.room,
         participant=participant,
         session_userdata=userdata,
+        initial_question=initial_question,
     )
 
     session_closed = asyncio.Event()

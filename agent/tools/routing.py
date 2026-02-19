@@ -19,6 +19,7 @@ import logging
 import os
 
 from livekit.agents import RunContext
+from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from agent.services import transcript_store, human_escalation
 from agent.services.langfuse_setup import get_tracer
@@ -82,10 +83,9 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
     ))
 
     logger.info("Routing to MathAgent [from=%s, session=%s]", from_agent, session_id)
-    return (
-        MathAgent(chat_ctx=context.session.history),
-        "Let me connect you with our Mathematics tutor!",
-    )
+    specialist = MathAgent(chat_ctx=context.session.history)
+    specialist._pending_question = question_summary
+    return (specialist, "Let me connect you with our Mathematics tutor!")
 
 
 async def _route_to_history_impl(agent, context: RunContext, question_summary: str):
@@ -120,10 +120,9 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
     ))
 
     logger.info("Routing to HistoryAgent [from=%s, session=%s]", from_agent, session_id)
-    return (
-        HistoryAgent(chat_ctx=context.session.history),
-        "Let me connect you with our History tutor!",
-    )
+    specialist = HistoryAgent(chat_ctx=context.session.history)
+    specialist._pending_question = question_summary
+    return (specialist, "Let me connect you with our History tutor!")
 
 
 async def _route_to_english_impl(agent, context: RunContext, question_summary: str):
@@ -165,9 +164,11 @@ async def _route_to_english_impl(agent, context: RunContext, question_summary: s
 
         async with LiveKitAPI(url=livekit_url, api_key=api_key, api_secret=api_secret) as api:
             await api.agent_dispatch.create_dispatch(
-                room_name=room_name,
-                agent_name="learning-english",
-                metadata=f"session:{session_id}",
+                CreateAgentDispatchRequest(
+                    agent_name="learning-english",
+                    room=room_name,
+                    metadata=f"session:{session_id}|question:{question_summary}",
+                )
             )
         logger.info("Dispatched learning-english worker to room %s", room_name)
 
@@ -249,10 +250,9 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
     logger.info(
         "Returning to OrchestratorAgent [from=%s, session=%s]", from_agent, session_id
     )
-    return (
-        OrchestratorAgent(chat_ctx=context.session.history),
-        "Let me pass you back to your main tutor!",
-    )
+    orchestrator = OrchestratorAgent(chat_ctx=context.session.history)
+    orchestrator._pending_question = reason
+    return (orchestrator, "Let me pass you back to your main tutor!")
 
 
 async def _escalate_impl(agent, context: RunContext, reason: str) -> str:

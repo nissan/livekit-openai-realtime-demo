@@ -13,7 +13,7 @@ These tests ensure that:
   3. English routing and escalation paths work correctly   (additional coverage)
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch, call
 
 
 def _make_mock_context(session_id="sess-abc", room_name="room-1"):
@@ -67,11 +67,13 @@ class TestOnEnterCallsGenerateReply:
         """
         OrchestratorAgent, MathAgent, and HistoryAgent must NOT define their own
         on_enter(). If any subclass accidentally shadows it with a no-op, this fails.
+        EnglishAgent IS expected to override on_enter (to skip the context-less call).
         """
         from agent.agents.base import GuardedAgent
         from agent.agents.orchestrator import OrchestratorAgent
         from agent.agents.math_agent import MathAgent
         from agent.agents.history_agent import HistoryAgent
+        from agent.agents.english_agent import EnglishAgent
 
         assert OrchestratorAgent.on_enter is GuardedAgent.on_enter, (
             "OrchestratorAgent must NOT override GuardedAgent.on_enter()"
@@ -81,6 +83,9 @@ class TestOnEnterCallsGenerateReply:
         )
         assert HistoryAgent.on_enter is GuardedAgent.on_enter, (
             "HistoryAgent must NOT override GuardedAgent.on_enter()"
+        )
+        assert EnglishAgent.on_enter is not GuardedAgent.on_enter, (
+            "EnglishAgent MUST override GuardedAgent.on_enter() with a no-op"
         )
 
     async def test_on_enter_does_not_double_call(self):
@@ -105,6 +110,56 @@ class TestOnEnterCallsGenerateReply:
             f"Expected generate_reply called once, "
             f"got {mock_session.generate_reply.call_count} call(s)"
         )
+
+    async def test_on_enter_passes_pending_question_as_user_input(self):
+        """
+        When _pending_question is set on the agent, on_enter() must pass it
+        as user_input to generate_reply() so the agent answers immediately.
+        """
+        import livekit.agents
+
+        mock_session = MagicMock()
+        mock_session.generate_reply = AsyncMock()
+
+        with patch.object(
+            livekit.agents.Agent, "session", new_callable=PropertyMock
+        ) as mock_prop:
+            mock_prop.return_value = mock_session
+
+            with patch("agent.agents.base.GuardedAgent.__init__", return_value=None):
+                from agent.agents.base import GuardedAgent
+
+                instance = object.__new__(GuardedAgent)
+                instance._pending_question = "What is the Pythagorean theorem?"
+                await instance.on_enter()
+
+        mock_session.generate_reply.assert_called_once_with(
+            user_input="What is the Pythagorean theorem?"
+        )
+
+    async def test_on_enter_without_pending_question_uses_no_user_input(self):
+        """
+        When no _pending_question is set, on_enter() calls generate_reply() with
+        no arguments so the agent uses conversation history context.
+        """
+        import livekit.agents
+
+        mock_session = MagicMock()
+        mock_session.generate_reply = AsyncMock()
+
+        with patch.object(
+            livekit.agents.Agent, "session", new_callable=PropertyMock
+        ) as mock_prop:
+            mock_prop.return_value = mock_session
+
+            with patch("agent.agents.base.GuardedAgent.__init__", return_value=None):
+                from agent.agents.base import GuardedAgent
+
+                instance = object.__new__(GuardedAgent)
+                # No _pending_question set
+                await instance.on_enter()
+
+        mock_session.generate_reply.assert_called_once_with()
 
 
 class TestSpecialistHasRoutingTools:
@@ -196,10 +251,14 @@ class TestEnglishRoutingAndEscalation:
 
     async def test_orchestrator_can_route_to_english(self):
         """
-        When the LiveKit API dispatch succeeds, OrchestratorAgent.route_to_english must return a
-        plain string announcement (not a tuple) and set current_subject to "english".
+        When the LiveKit API dispatch succeeds, OrchestratorAgent.route_to_english must:
+        - return a plain string announcement (not a tuple)
+        - set current_subject to "english"
+        - call create_dispatch with a CreateAgentDispatchRequest proto object
         """
-        context, userdata = _make_mock_context()
+        from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
+
+        context, userdata = _make_mock_context(room_name="room-1")
 
         # Build a mock async-context-manager for LiveKitAPI
         mock_api = MagicMock()
@@ -237,6 +296,14 @@ class TestEnglishRoutingAndEscalation:
             f"got {type(result).__name__!r} instead"
         )
         assert userdata.current_subject == "english"
+
+        # Verify dispatch used proto object, not keyword args
+        call_arg = mock_api.agent_dispatch.create_dispatch.call_args[0][0]
+        assert isinstance(call_arg, CreateAgentDispatchRequest), (
+            f"create_dispatch must be called with CreateAgentDispatchRequest, got {type(call_arg)}"
+        )
+        assert call_arg.room == "room-1"
+        assert call_arg.agent_name == "learning-english"
 
     async def test_english_routing_fallback_on_dispatch_failure(self):
         """

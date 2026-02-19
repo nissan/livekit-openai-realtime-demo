@@ -39,6 +39,7 @@ from typing import Optional
 from livekit.agents import AgentSession, RoomInputOptions, function_tool
 from livekit.plugins import openai
 from livekit.plugins.openai import realtime
+from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from agent.agents.base import GuardedAgent
 from agent.services import guardrail as guardrail_service
@@ -90,6 +91,11 @@ class EnglishAgent(GuardedAgent):
         )
         logger.info("EnglishAgent initialised (realtime, model=%s)", _REALTIME_MODEL)
 
+    async def on_enter(self) -> None:
+        # English Realtime session calls generate_reply() with initial_question
+        # from dispatch metadata — we skip the default no-context on_enter.
+        pass
+
     @function_tool(
         description=(
             "Route back to the orchestrator when: the student asks about a different "
@@ -120,9 +126,11 @@ class EnglishAgent(GuardedAgent):
             from livekit.api import LiveKitAPI
             async with LiveKitAPI(url=livekit_url, api_key=api_key, api_secret=api_secret) as api:
                 await api.agent_dispatch.create_dispatch(
-                    room_name=room_name,
-                    agent_name="learning-orchestrator",
-                    metadata=f"return_from_english:{session_id}",
+                    CreateAgentDispatchRequest(
+                        agent_name="learning-orchestrator",
+                        room=room_name,
+                        metadata=f"return_from_english:{session_id}|question:{reason}",
+                    )
                 )
         except Exception:
             logger.exception("Failed to dispatch orchestrator on English→back handoff")
@@ -148,6 +156,7 @@ async def create_english_realtime_session(
     room,
     participant,
     session_userdata,
+    initial_question: str = "",
 ) -> AgentSession:
     """
     Factory for the English Realtime AgentSession.
@@ -203,4 +212,9 @@ async def create_english_realtime_session(
                     ))
 
     await session.start(agent, room=room)
+
+    if initial_question:
+        # Immediately answer the question that caused routing to English
+        session.generate_reply(user_input=initial_question)
+
     return session
