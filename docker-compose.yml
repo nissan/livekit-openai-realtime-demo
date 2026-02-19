@@ -213,7 +213,7 @@ services:
     restart: unless-stopped
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
-      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS:-public,storage,graphql_public}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS:-public,storage}
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       PGRST_DB_USE_LEGACY_GUCS: "false"
@@ -335,10 +335,10 @@ services:
       OPENAI_HISTORY_MODEL: ${OPENAI_HISTORY_MODEL:-gpt-5.2}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SUPABASE_URL: ${SUPABASE_URL:-http://supabase-kong:8000}
-      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.D4gyAqkKFFsgPIz-MmYQHlx1xERp1gHQMEbPuvX5ogs}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.mtyP0JVMJMVv6lG_6nro9vLvAcYv9I1b6RmC_ktydbs}
       LANGFUSE_HOST: http://langfuse:3000
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-lf-pk-dev}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-lf-sk-dev}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-dev}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-dev}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://langfuse:3000/api/public/otel/v1/traces
     depends_on:
       - livekit
@@ -361,9 +361,9 @@ services:
       NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
       SUPABASE_URL: ${SUPABASE_URL:-http://supabase-kong:8000}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.ix3Xvz1KYi-nF_GmVRJZ9F7Yam8CU_u2NzFKTQO9flo}
-      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.D4gyAqkKFFsgPIz-MmYQHlx1xERp1gHQMEbPuvX5ogs}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.mtyP0JVMJMVv6lG_6nro9vLvAcYv9I1b6RmC_ktydbs}
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.ix3Xvz1KYi-nF_GmVRJZ9F7Yam8CU_u2NzFKTQO9flo}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.NKabdAvabwL3FwRKD-V6kfYsQQCxzNo5CRJ7NYgUdDY}
     depends_on:
       - livekit
       - supabase-kong

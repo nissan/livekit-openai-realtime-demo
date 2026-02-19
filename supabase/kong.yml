@@ -62,8 +62,8 @@ services:
 consumers:
   - username: anon
     keyauth_credentials:
-      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.ix3Xvz1KYi-nF_GmVRJZ9F7Yam8CU_u2NzFKTQO9flo
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYzNDAxMzA3OSwiZXhwIjoxOTQ5NTczMDc5fQ.NKabdAvabwL3FwRKD-V6kfYsQQCxzNo5CRJ7NYgUdDY
 
   - username: service_role
     keyauth_credentials:
-      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.D4gyAqkKFFsgPIz-MmYQHlx1xERp1gHQMEbPuvX5ogs
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjM0MDEzMDc5LCJleHAiOjE5NDk1NzMwNzl9.mtyP0JVMJMVv6lG_6nro9vLvAcYv9I1b6RmC_ktydbs

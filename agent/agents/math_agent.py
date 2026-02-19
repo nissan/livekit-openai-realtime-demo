@@ -1,5 +1,5 @@
 """
-MathAgent — Claude Sonnet 3.5 pipeline agent for mathematics tutoring.
+MathAgent — Claude Sonnet 4.6 pipeline agent for mathematics tutoring.
 
 Data flow:
   Student speaks → STT → Claude Sonnet (text) → [tts_node GUARDRAIL] → TTS → audio
@@ -39,7 +39,7 @@ it clearly and correct it.
 class MathAgent(GuardedAgent):
     """
     Mathematics specialist agent.
-    Overrides the session LLM with Claude Sonnet 3.5 at low temperature
+    Overrides the session LLM with Claude Sonnet 4.6 at low temperature
     for precise step-by-step mathematical reasoning.
     """
     agent_name = "math"
@@ -48,9 +48,9 @@ class MathAgent(GuardedAgent):
         super().__init__(
             instructions=MATH_SYSTEM_PROMPT,
             llm=anthropic.LLM(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-sonnet-4-6",
                 temperature=0.3,  # low temp for precise maths
             ),
             chat_ctx=chat_ctx,
         )
-        logger.info("MathAgent initialised (claude-3-5-sonnet-20241022, temp=0.3)")
+        logger.info("MathAgent initialised (claude-sonnet-4-6, temp=0.3)")
