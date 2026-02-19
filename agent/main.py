@@ -117,6 +117,11 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         userdata.session_id = recovered_session_id
         userdata.current_subject = "orchestrator"  # back at orchestrator after English
 
+    # If there's a pending_question from re-dispatch metadata, it will be injected via
+    # generate_reply(user_input=pending_question) in on_enter — suppress the phantom entry.
+    if pending_question:
+        userdata.skip_next_user_turns = 1
+
     # Log session creation to Supabase
     await transcript_store.create_session_record(
         session_id=userdata.session_id,
@@ -163,10 +168,10 @@ async def pipeline_session_entrypoint(ctx: JobContext):
         if role == "user":
             # Skip phantom "user" messages injected by generate_reply(user_input=pending_q)
             # in GuardedAgent.on_enter() — these are routing context, not real student speech.
-            # The student's original question is already in the transcript; suppress the duplicate.
-            pending = getattr(userdata, "pending_context", None)
-            if pending and (msg.text_content or "").strip() == pending.strip():
-                userdata.pending_context = None  # consumed — clear for next routing event
+            # String-match is unreliable (LLM varies question_summary wording/casing).
+            # Use a counter: routing fns set skip_next_user_turns=1; we consume it here.
+            if getattr(userdata, "skip_next_user_turns", 0) > 0:
+                userdata.skip_next_user_turns -= 1
                 return
             speaker = "student"
         else:

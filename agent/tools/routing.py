@@ -89,7 +89,7 @@ async def _route_to_math_impl(agent, context: RunContext, question_summary: str)
     logger.info("Routing to MathAgent [from=%s, session=%s]", from_agent, session_id)
     specialist = MathAgent(chat_ctx=context.session.history)
     specialist._pending_question = question_summary
-    userdata.pending_context = question_summary  # suppress phantom "user" transcript entry
+    userdata.skip_next_user_turns = 1  # suppress phantom "user" transcript entry from generate_reply(user_input=)
     return (specialist, "Let me connect you with our Mathematics tutor!")
 
 
@@ -129,7 +129,7 @@ async def _route_to_history_impl(agent, context: RunContext, question_summary: s
     logger.info("Routing to HistoryAgent [from=%s, session=%s]", from_agent, session_id)
     specialist = HistoryAgent(chat_ctx=context.session.history)
     specialist._pending_question = question_summary
-    userdata.pending_context = question_summary  # suppress phantom "user" transcript entry
+    userdata.skip_next_user_turns = 1  # suppress phantom "user" transcript entry from generate_reply(user_input=)
     return (specialist, "Let me connect you with our History tutor!")
 
 
@@ -276,7 +276,7 @@ async def _route_to_orchestrator_impl(agent, context: RunContext, reason: str):
     )
     orchestrator = OrchestratorAgent(chat_ctx=context.session.history)
     orchestrator._pending_question = reason
-    userdata.pending_context = reason  # suppress phantom "user" transcript entry
+    userdata.skip_next_user_turns = 1  # suppress phantom "user" transcript entry from generate_reply(user_input=)
     return (orchestrator, "Let me pass you back to your main tutor!")
 
 
