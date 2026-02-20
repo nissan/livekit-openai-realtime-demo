@@ -127,12 +127,12 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 ## User Preferences
 - Git commits frequently with intelligent messages for audit trail
 - Public GitHub repo for all projects
-- **Every plan must be saved as PLAN{N}.md in project root** for architect audit trail — do this as part of every plan implementation (PLAN.md, PLAN2–PLAN18 all present)
+- **Every plan must be saved as PLAN{N}.md in project root** for architect audit trail — do this as part of every plan implementation (PLAN.md, PLAN2–PLAN22 all present)
 - **MEMORY.md is kept in sync in the repo root** for architect audit — update and commit whenever Claude Code memory changes
 - **Blanket approval for**: `docker`, `docker compose`, `docker inspect`, `grep`, `sed` — no need to ask for confirmation, always proceed
 
 ## Key File Locations
-- Plans: PLAN.md–PLAN18.md (root)
+- Plans: PLAN.md–PLAN22.md (root) — PLAN21: LinkedIn article retrospective; PLAN22: reference verification audit
 - Agent memory (repo copy): MEMORY.md (root) — kept in sync with ~/.claude/projects/.../memory/MEMORY.md
 - Test fixtures: agent/tests/fixtures/synthetic_questions.py (63-item parametrised dataset, PLAN18)
 - Session state: agent/models/session_state.py (SessionUserdata — skip_next_user_turns etc.)
