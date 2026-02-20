@@ -1,4 +1,4 @@
-# 20 Plans, 13 Services, 4 AI Agents: Lessons from Building a Production Voice Tutoring System
+# 20 Plans, 18 Services, 4 AI Agents: Lessons from Building a Production Voice Tutoring System
 
 *A technical retrospective for senior engineers, AI researchers, and engineering leaders.*
 
@@ -6,7 +6,7 @@
 
 ## The Journey
 
-Twenty engineering plans. Thirteen Docker services. Four AI agents. One student asking a maths question at 9pm.
+Twenty engineering plans. Eighteen Docker services. Four AI agents. One student asking a maths question at 9pm.
 
 This is the story of building a production voice tutoring system from scratch — iteratively, with real constraints, real failures, and hard-won lessons that no tutorial ever mentions.
 
@@ -61,14 +61,14 @@ All four agents can route to each other. The orchestrator classifies intent; spe
                        │  hist  │    │
              ┌─────────▼──┐  ┌──▼───────────┐
              │  MathAgent │  │HistoryAgent  │
-             │  Sonnet 4.6│  │  GPT-4o      │
+             │  Sonnet 4.6│  │  gpt-5.2     │
              └──────┬─────┘  └──────┬───────┘
                     │               │
-                    └──────↔────────┘
-                    direct cross-routing
+                    └───────────────┘
+                  both route back to orchestrator
 ```
 
-Specialists can route directly to each other — a history question mid-maths session doesn't need an orchestrator round-trip. This is the Mixture-of-Agents pattern (Wang et al., 2024) applied to voice: route to the model best suited to the domain, not the one that happens to be active.
+Specialists route back to the orchestrator on completion — the orchestrator then re-classifies and dispatches for the next question. This is the Mixture-of-Agents pattern (Wang et al., 2024) applied to voice: route to the model best suited to the domain, not the one that happens to be active.
 
 ### Model Selection
 
@@ -76,7 +76,7 @@ Specialists can route directly to each other — a history question mid-maths se
 |---|---|---|---|
 | Orchestrator | Claude Haiku 4.5 | Routing classification | Low cost, < 500ms, consistent at temp=0.1 |
 | Math | Claude Sonnet 4.6 | Step-by-step reasoning | Chain-of-thought at scale |
-| History | GPT-4o | Factual narrative | Broad knowledge, 128K context |
+| History | gpt-5.2 | Factual narrative | Broad knowledge, 400K context |
 | English | gpt-4o-realtime | Speech-to-speech | ~230ms TTFB, native audio, no STT→LLM→TTS hop |
 | Guardrail check | omni-moderation-latest | Content safety detection | 13 categories, ~5ms, essentially free |
 | Guardrail rewrite | Claude Haiku 4.5 | Age-appropriate rewrite | Fast, cheap, system prompt controllable |
@@ -274,7 +274,7 @@ Langfuse v3 processes OTEL spans via a BullMQ queue in Redis. Without the `langf
 
 ### Mixture-of-Agents (Wang et al., 2024)
 
-The routing graph instantiates the Mixture-of-Agents pattern: rather than one large model handling all domains, we route to specialised models selected for cost, latency, and quality in their respective domain. Haiku for fast routing decisions; Sonnet for step-by-step mathematical reasoning; GPT-4o for broad historical knowledge.
+The routing graph instantiates the Mixture-of-Agents pattern: rather than one large model handling all domains, we route to specialised models selected for cost, latency, and quality in their respective domain. Haiku for fast routing decisions; Sonnet for step-by-step mathematical reasoning; gpt-5.2 for broad historical knowledge.
 
 ### Intelligent Tutoring Systems (VanLehn, 2011; Bloom, 1984)
 
@@ -362,4 +362,4 @@ The specific SDK version gotchas documented here will age. The LiveKit API will 
 
 *Source code: https://github.com/nissan/livekit-openai-realtime-demo*
 
-*Plans 1–20 are committed to the repository root as `PLAN.md` through `PLAN20.md` — a full audit trail of every architectural decision.*
+*Plans 1–22 are committed to the repository root as `PLAN.md` through `PLAN22.md` — a full audit trail of every architectural decision.*
