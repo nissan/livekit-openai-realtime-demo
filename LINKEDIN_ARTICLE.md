@@ -10,7 +10,9 @@ Twenty engineering plans. Eighteen Docker services. Four AI agents. One student 
 
 This is the story of building a production voice tutoring system from scratch — iteratively, with real constraints, real failures, and hard-won lessons that no tutorial ever mentions.
 
-The `livekit-openai-realtime-demo` project is an AI-powered tutoring assistant where a student can ask questions about mathematics, history, or English via voice, and be routed to a specialist agent in real time. What began as a proof-of-concept became a case study in the compounding complexity of voice AI systems.
+The `livekit-openai-realtime-demo` project was deliberately conceived as a proof-of-concept: a structured experiment to gain first-hand experience building a production-grade voice AI and agent-powered application. OpenAI Realtime and LiveKit were chosen as **accelerators** — mature infrastructure that let us focus on orchestration, safety, and reliability rather than WebRTC plumbing. The tutoring domain was selected because it exercises the scenarios that matter most in real deployments: specialist routing across heterogeneous models, mixed voice-and-text agent sessions, and child-safety requirements that most demos never encounter.
+
+The goal was not to ship the best tutoring system — it was to identify the compounding challenges of voice AI systems in a controlled domain, surface every failure, and extract lessons that generalise beyond this specific stack. What follows is that audit.
 
 Three things make voice AI qualitatively harder than text AI:
 
@@ -304,6 +306,22 @@ Skantze's survey of turn-taking in conversational systems identifies timing cont
 **Instrument from day one.** Observability is not a logging layer on top of a working system; it is the primary mechanism for understanding what a non-deterministic AI system is actually doing. We added OTEL in plan seventeen. Every insight we gained from traces could have informed plans two through sixteen.
 
 **Write integration tests before unit tests for AI routing.** Unit tests with mocked AI APIs tell you that your branching logic is correct. They do not tell you that the model you're routing with will produce the routing decision you expect. Integration tests with real APIs, run against a small fixture set, catch model-level failures that unit tests structurally cannot.
+
+**Evaluate the platform against first principles, not features.** Many of the ten lessons above are specific to LiveKit Agents v1.4 and OpenAI Realtime — they will not apply if you choose DeepGram for STT, ElevenLabs for TTS, Anthropic for your LLM, or Gemini's native voice capabilities. What does apply is the evaluation framework those lessons imply. Before committing to any voice AI platform, test it against six questions:
+
+1. **What is the earliest point at which you can inspect or modify content before it reaches the user?** Native speech-to-speech pipelines (OpenAI Realtime, Gemini Live) give the lowest latency but the least interception surface. Decomposed pipelines (DeepGram STT → any LLM → ElevenLabs TTS) add latency but give you a text checkpoint between every stage. If your use case has safety, personalisation, or compliance requirements, this checkpoint is not optional — it is the architecture.
+
+2. **Does the platform's event model match your execution model?** Sync vs async, fire-and-forget vs awaitable, single vs multi-subscriber — these decisions ripple through your entire codebase. LiveKit v1.4's synchronous-only `.on()` callbacks (Lesson 4) and `@livekit/components-react`'s exclusive ownership of `lk.transcription` were constraints we discovered in production, not in documentation. Ask the vendor explicitly; if they don't know, write a test.
+
+3. **Who owns session lifetime — you or the platform?** The more control you have over session creation, agent handoff, and termination timing, the more you can build. The less control, the faster you ship the first demo. Our 3.5-second close-delay workaround (Lesson 2) was a consequence of the platform's all-or-nothing `interrupt()` API. A platform that exposes fine-grained lifecycle hooks would have made this a configuration decision, not a debugging session.
+
+4. **How often do types and contracts change without deprecation warnings?** The `tts_node` return type changed from text to audio frames in LiveKit Agents v1.4 with no warning, no deprecation period, and no error at runtime — just silence (Lesson 1). Before committing to any SDK, read the last three minor release changelogs. If breaking changes appear without clear migration paths, budget accordingly.
+
+5. **Can you attach instrumentation to the platform's internal decisions?** A platform that emits events you can wrap in OTEL spans is observable. One that processes internally and surfaces only results is a black box. LiveKit's event system made most routing decisions instrumentable; OpenAI Realtime surfaces `conversation_item_added` post-hoc, which is workable but limits guardrail timing. Ask: *what can I measure, and when?*
+
+6. **What deployment assumptions does the platform bake in?** LiveKit requires explicit ICE candidate configuration for non-standard network topologies (Lesson 7). This is not a flaw — it is a design choice that prioritises flexibility over zero-configuration. But discovering it via `could not establish pc connection` with no further indication of root cause cost hours. Before deploying, run the platform in your actual target environment — not a cloud dev environment — and verify that the defaults match your topology.
+
+These six criteria are not LiveKit-specific or OpenAI-specific. They apply to every voice AI stack, at every scale. A platform that scores well on all six will not eliminate complexity — but it will ensure that the complexity you encounter is in your domain logic, not in fighting the infrastructure.
 
 ---
 
