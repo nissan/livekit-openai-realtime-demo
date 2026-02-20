@@ -259,7 +259,7 @@ The event system expects synchronous callbacks. Passing an `async def` silently 
 
 ### 6. `ctx.job.metadata` is not `ctx.room.metadata`
 
-Job metadata and room metadata are separate objects with different lifecycle guarantees. We used the wrong one for session initialisation in three consecutive plans before the distinction became clear.
+Job metadata and room metadata are separate objects with different lifecycle guarantees. We used the wrong one for session initialisation across two consecutive plans before the distinction became clear.
 
 ### 7. macOS Docker + LiveKit requires `rtc.node_ip: 127.0.0.1`
 
