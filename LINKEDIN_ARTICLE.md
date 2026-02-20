@@ -337,7 +337,7 @@ The specific SDK version gotchas documented here will age. The LiveKit API will 
 
 8. Park, J. S. et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior. *arXiv:2304.03442*. https://arxiv.org/abs/2304.03442
 
-9. Shen, Y. et al. (2023). HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in HuggingFace. *arXiv:2303.17580*. https://arxiv.org/abs/2303.17580
+9. Shen, Y. et al. (2023). HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face. *arXiv:2303.17580*. https://arxiv.org/abs/2303.17580
 
 10. Dubey, A. et al. (2024). The Llama 3 Herd of Models. *arXiv:2407.21783*. https://arxiv.org/abs/2407.21783
 
