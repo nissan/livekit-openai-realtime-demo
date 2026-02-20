@@ -133,6 +133,7 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 
 ## Key File Locations
 - Plans: PLAN.md–PLAN23.md (root) — PLAN21: LinkedIn article retrospective; PLAN22: reference verification audit; PLAN23: POC framing + platform evaluation criteria
+- Claude Code guidance: CLAUDE.md (root) — commands, architecture, critical gotchas for Claude Code instances
 - Agent memory (repo copy): MEMORY.md (root) — kept in sync with ~/.claude/projects/.../memory/MEMORY.md
 - Test fixtures: agent/tests/fixtures/synthetic_questions.py (63-item parametrised dataset, PLAN18)
 - Session state: agent/models/session_state.py (SessionUserdata — skip_next_user_turns etc.)
