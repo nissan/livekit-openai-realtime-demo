@@ -50,7 +50,7 @@ The pipeline session handles structured pedagogical interactions. The realtime s
 
 ### The Routing Graph
 
-The orchestrator classifies intent and routes to specialists; specialists route back to the orchestrator on completion.
+The orchestrator classifies intent and routes to specialists; specialists route back to the orchestrator on completion by default, and can also route directly to each other.
 
 ```
                     ┌─────────────────────┐
@@ -67,10 +67,11 @@ The orchestrator classifies intent and routes to specialists; specialists route 
              └──────┬─────┘  └──────┬───────┘
                     │               │
                     └───────────────┘
-                  both route back to orchestrator
+          both route back to orchestrator by default;
+               peer routing between specialists also supported
 ```
 
-Specialists route back to the orchestrator on completion — the orchestrator then re-classifies and dispatches for the next question. This applies the core insight of Mixture-of-Agents (Wang et al., 2024) — use specialised models for specialised tasks — as a sequential routing architecture: one model per domain, selected at dispatch time rather than aggregated in parallel.
+Specialists route back to the orchestrator on completion by default — the orchestrator then re-classifies and dispatches for the next question. Specialists can also route directly to each other without returning to the orchestrator first. This applies the core insight of Mixture-of-Agents (Wang et al., 2024) — use specialised models for specialised tasks — as a sequential routing architecture: one model per domain, selected at dispatch time rather than aggregated in parallel.
 
 ### Model Selection
 
@@ -78,7 +79,7 @@ Specialists route back to the orchestrator on completion — the orchestrator th
 |---|---|---|---|
 | Orchestrator | Claude Haiku 4.5 | Routing classification | Low cost, < 500ms, consistent at temp=0.1 |
 | Math | Claude Sonnet 4.6 | Step-by-step reasoning | Chain-of-thought at scale |
-| History | gpt-5.2 | Factual narrative | Broad knowledge, 400K context |
+| History | gpt-5.2 (configurable via `OPENAI_HISTORY_MODEL`) | Factual narrative | Broad knowledge, large context window |
 | English | gpt-realtime | Speech-to-speech | ~230ms TTFB, native audio, no STT→LLM→TTS hop |
 | Guardrail check | omni-moderation-latest | Content safety detection | 13 categories, ~5ms, essentially free |
 | Guardrail rewrite | Claude Haiku 4.5 | Age-appropriate rewrite | Fast, cheap, system prompt controllable |
@@ -247,7 +248,7 @@ We called `interrupt()` immediately after dispatching the English agent to clean
 
 ### 3. LLM output is non-deterministic — use counters, not string matching
 
-We tried to detect when a specialist agent had answered a "pending question" by comparing the LLM's reply to the stored question summary. The comparison failed on approximately 30% of sessions. The fix: set `userdata.skip_next_user_turns = 1` and consume it with a counter in `on_conversation_item`.
+We tried to detect when a specialist agent had answered a "pending question" by comparing the LLM's reply to the stored question summary. The comparison failed on roughly one in three sessions. The fix: set `userdata.skip_next_user_turns = 1` and consume it with a counter in `on_conversation_item`.
 
 ### 4. Async callbacks in `.on()` are rejected by LiveKit v1.4
 
@@ -351,33 +352,33 @@ The specific SDK version gotchas documented here will age. The LiveKit API will 
 
 6. Skantze, G. (2021). Turn-Taking in Conversational Systems and Human-Robot Interaction: A Review. *Computer Speech & Language*, 67. https://doi.org/10.1016/j.csl.2020.101178
 
-7. Liu, X. et al. (2024). AgentBench: Evaluating LLMs as Agents. *arXiv:2308.03688*. https://arxiv.org/abs/2308.03688
-
-8. Park, J. S. et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior. *arXiv:2304.03442*. https://arxiv.org/abs/2304.03442
-
-9. Shen, Y. et al. (2023). HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face. *arXiv:2303.17580*. https://arxiv.org/abs/2303.17580
-
-10. Dubey, A. et al. (2024). The Llama 3 Herd of Models. *arXiv:2407.21783*. https://arxiv.org/abs/2407.21783
-
 ### Industry Standards and Best Practices
 
-11. OpenTelemetry Specification (2023). https://opentelemetry.io/docs/specs/otel/
+7. OpenTelemetry Specification (2023). https://opentelemetry.io/docs/specs/otel/
 
-12. Fowler, M. (2012). TestPyramid. https://martinfowler.com/bliki/TestPyramid.html
+8. Fowler, M. (2012). TestPyramid. https://martinfowler.com/bliki/TestPyramid.html
 
-13. Cohn, M. (2009). *Succeeding with Agile*. Addison-Wesley. ISBN 0-321-57936-4.
+9. Cohn, M. (2009). *Succeeding with Agile*. Addison-Wesley. ISBN 0-321-57936-4.
 
-14. W3C (2021). WebRTC 1.0: Real-Time Communication Between Browsers. https://www.w3.org/TR/webrtc/
+10. W3C (2021). WebRTC 1.0: Real-Time Communication Between Browsers. https://www.w3.org/TR/webrtc/
 
-15. LiveKit Agents Documentation (2024). https://docs.livekit.io/agents/
+11. LiveKit Agents Documentation (2024). https://docs.livekit.io/agents/
 
-16. OpenAI Moderation API (2024). https://platform.openai.com/docs/guides/moderation
+12. OpenAI Moderation API (2024). https://platform.openai.com/docs/guides/moderation
 
-17. Langfuse OpenTelemetry Integration (2024). https://langfuse.com/docs/integrations/opentelemetry
+13. Langfuse OpenTelemetry Integration (2024). https://langfuse.com/docs/integrations/opentelemetry
 
-18. Supabase Row Level Security (2024). https://supabase.com/docs/guides/database/postgres/row-level-security
+14. Supabase Row Level Security (2024). https://supabase.com/docs/guides/database/postgres/row-level-security
 
-### Background Reading
+### Further Reading
+
+15. Liu, X. et al. (2024). AgentBench: Evaluating LLMs as Agents. *arXiv:2308.03688*. https://arxiv.org/abs/2308.03688
+
+16. Park, J. S. et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior. *arXiv:2304.03442*. https://arxiv.org/abs/2304.03442
+
+17. Shen, Y. et al. (2023). HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face. *arXiv:2303.17580*. https://arxiv.org/abs/2303.17580
+
+18. Dubey, A. et al. (2024). The Llama 3 Herd of Models. *arXiv:2407.21783*. https://arxiv.org/abs/2407.21783
 
 19. Wooldridge, M. (2009). *An Introduction to MultiAgent Systems* (2nd ed.). Wiley.
 
@@ -387,4 +388,4 @@ The specific SDK version gotchas documented here will age. The LiveKit API will 
 
 *Source code: https://github.com/nissan/livekit-openai-realtime-demo*
 
-*Plans 1–23 are committed to the repository root as `PLAN.md` through `PLAN23.md` — a full audit trail of every architectural decision.*
+*Plans 1–20 cover the engineering work and are committed to the repository root as `PLAN.md` through `PLAN20.md`. Plans 21–23 are documentation, reference verification, and article amendments — a full audit trail of every architectural decision.*
