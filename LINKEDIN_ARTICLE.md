@@ -81,7 +81,7 @@ Specialists route back to the orchestrator on completion — the orchestrator th
 | Guardrail check | omni-moderation-latest | Content safety detection | 13 categories, ~5ms, essentially free |
 | Guardrail rewrite | Claude Haiku 4.5 | Age-appropriate rewrite | Fast, cheap, system prompt controllable |
 
-The routing classification runs at `temperature=0.1`. Non-deterministic routing is a reliability bug, not a feature. The specialists run at higher temperatures where creative explanation matters.
+The routing classification runs at `temperature=0.1`. Non-deterministic routing is a reliability bug, not a feature. Math runs at `temperature=0.3` — low, for precise step-by-step reasoning. History uses the model default, where narrative fluency matters more than determinism.
 
 ---
 
@@ -217,7 +217,7 @@ This is the CheckList approach (Ribeiro et al., 2020): test behavioral propertie
 Integration tests are harder to write correctly than unit tests. Three engineering decisions made them reliable:
 
 1. **Key capture at module load time.** `conftest.py` reads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` before autouse monkeypatching can shadow them. Tests that need real API access skip gracefully via `pytest.skip()` inside an autouse fixture when keys are absent.
-2. **Singleton reset between tests.** The guardrail module maintains lazy-initialised singletons. Each integration test calls `reset_singletons()` in teardown to prevent state leak.
+2. **Singleton reset between tests.** The guardrail module maintains lazy-initialised singletons. The autouse fixture resets them before each test by directly assigning `None` to the private client attributes (`gm._openai_client = None`, `gm._anthropic_client = None`), forcing reinitialisation with the real keys.
 3. **`pytest-timeout>=2.3.0`.** A test that hangs against a real API is worse than a test that fails. Every integration test has `@pytest.mark.timeout(30)`.
 
 ### The 66 Playwright Tests
