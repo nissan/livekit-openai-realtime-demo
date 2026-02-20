@@ -299,7 +299,7 @@ Skantze's survey of turn-taking in conversational systems identifies timing cont
 
 ## What We Would Do Differently
 
-**Use a state machine for agent lifecycle.** We used ad-hoc boolean flags and integer counters to manage agent transitions. By plan twelve, `SessionUserdata` had seven fields tracking transition state. A formal state machine would have made invalid transitions impossible to represent, not just unlikely to happen.
+**Use a state machine for agent lifecycle.** We used ad-hoc boolean flags and integer counters to manage agent transitions. By plan twelve, `SessionUserdata` had ten fields tracking transition state. A formal state machine would have made invalid transitions impossible to represent, not just unlikely to happen.
 
 **Instrument from day one.** Observability is not a logging layer on top of a working system; it is the primary mechanism for understanding what a non-deterministic AI system is actually doing. We added OTEL in plan seventeen. Every insight we gained from traces could have informed plans two through sixteen.
 
