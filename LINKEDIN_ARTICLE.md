@@ -1,6 +1,6 @@
-# 20 Plans, 18 Services, 4 AI Agents: Lessons from Building a Production Voice Tutoring System
+# 20 Plans, 18 Services, 4 AI Agents: What We Learned Building a Voice AI Proof of Concept
 
-*A technical retrospective for senior engineers, AI researchers, and engineering leaders.*
+*What building a voice AI system actually looks like — the architecture, the failures, and the questions that tutorials don't usually reach. Written for builders at any stage.*
 
 ---
 
@@ -8,7 +8,7 @@
 
 Twenty engineering plans. Eighteen Docker services. Four AI agents. One student asking a maths question at 9pm.
 
-This is the story of building a production voice tutoring system from scratch — iteratively, with real constraints, real failures, and hard-won lessons that no tutorial ever mentions.
+This is the story of building a voice AI system from scratch — iteratively, with real constraints, real failures, and the kinds of questions that tutorials don't usually reach.
 
 The `livekit-openai-realtime-demo` project was deliberately conceived as a proof-of-concept: a structured experiment to gain first-hand experience building a production-grade voice AI and agent-powered application. OpenAI Realtime and LiveKit were chosen as **accelerators** — mature infrastructure that let us focus on orchestration, safety, and reliability rather than WebRTC plumbing. The tutoring domain was selected because it exercises the scenarios that matter most in real deployments: specialist routing across heterogeneous models, mixed voice-and-text agent sessions, and child-safety requirements that most demos never encounter.
 
@@ -83,7 +83,7 @@ Specialists always route back to the orchestrator on completion — the orchestr
 | Guardrail check | omni-moderation-latest | Content safety detection | 13 categories, ~5ms, essentially free |
 | Guardrail rewrite | Claude Haiku 4.5 | Age-appropriate rewrite | Fast, cheap, system prompt controllable |
 
-The routing classification runs at `temperature=0.1`. Non-deterministic routing is a reliability bug, not a feature. Math runs at `temperature=0.3` — low, for precise step-by-step reasoning. History uses the model default, where narrative fluency matters more than determinism.
+The routing classification runs at `temperature=0.1` — in our experience, non-deterministic routing is a reliability problem, not a feature. Math runs at `temperature=0.3` — low, for precise step-by-step reasoning. History uses the model default, where narrative fluency matters more than determinism.
 
 ---
 
@@ -172,7 +172,7 @@ Two separate tests, two separate properties: that the system rewrites the conten
 
 ## Observability: Why OTEL Was Non-Negotiable
 
-Langfuse v3 with OpenTelemetry HTTP/protobuf was added in Plan 17 — sixteen plans in. That was sixteen plans too late.
+Langfuse v3 with OpenTelemetry HTTP/protobuf was added in Plan 17 — sixteen plans in. We wish we had started in plan one.
 
 The architecture:
 - Each span is created with `tracer.start_as_current_span()` and attributes set inline
@@ -239,7 +239,7 @@ E2E tests cover the complete student flow: connecting to a room, asking a questi
 
 ### 1. `tts_node` must return `AsyncIterable[rtc.AudioFrame]`, not `AsyncIterable[str]`
 
-LiveKit Agents v1.4 changed the API. Returning strings from `tts_node` produces no error — the agent enters a `Thinking` state and never speaks. Four hours lost.
+LiveKit Agents v1.4 changed the API. Returning strings from `tts_node` produces no error — the agent enters a `Thinking` state and never speaks. It took us several hours to trace it back to the return type.
 
 ### 2. Never use `session.interrupt()` unless you want total silence
 
@@ -332,6 +332,10 @@ Twenty plans is not an unusual number for a system of this complexity. It's the 
 The bugs documented here are not embarrassments — they are the evidence that the system was tested at depth. The latency figures are not performance claims — they are operating constraints the architecture is designed around. The test counts are not vanity metrics — they are the boundary between "we believe this works" and "we can demonstrate that this works."
 
 The specific SDK version gotchas documented here will age. The LiveKit API will change. The Langfuse ingestion architecture will evolve. The lessons about observability from day one, the three-level test pyramid, the true-positive security tests, and the sentence-level safety architecture — those are transferable to any voice AI system, at any scale, in any framework.
+
+The full source — the complete Docker stack, all 20 engineering plans, the test suite, and every architectural decision documented in commits — is open source and freely available at https://github.com/nissan/livekit-openai-realtime-demo. Clone it, run it locally, break it, improve it. The plans are committed to the repo root so you can follow the reasoning behind every decision, not just the final state.
+
+We built this to learn, and the most useful outcome of sharing it would be a conversation. If you are building something similar, if your experience with voice AI looks different from what we have described, or if you would approach any of these problems differently — we would genuinely like to hear about it. Drop a comment or reach out directly.
 
 ---
 
