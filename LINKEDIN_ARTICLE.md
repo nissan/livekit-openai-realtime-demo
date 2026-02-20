@@ -326,7 +326,7 @@ The specific SDK version gotchas documented here will age. The LiveKit API will 
 
 6. Skantze, G. (2021). Turn-Taking in Conversational Systems and Human-Robot Interaction: A Review. *Computer Speech & Language*, 67. https://doi.org/10.1016/j.csl.2020.101178
 
-7. Chen, L. et al. (2023). AgentBench: Evaluating LLMs as Agents. *arXiv:2308.03688*. https://arxiv.org/abs/2308.03688
+7. Liu, X. et al. (2024). AgentBench: Evaluating LLMs as Agents. *arXiv:2308.03688*. https://arxiv.org/abs/2308.03688
 
 8. Park, J. S. et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior. *arXiv:2304.03442*. https://arxiv.org/abs/2304.03442
 
