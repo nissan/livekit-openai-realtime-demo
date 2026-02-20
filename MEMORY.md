@@ -30,6 +30,10 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 ## Testing Infrastructure
 - Pytest 171 unit tests: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/ -v`
 - PLAN18: +69 synthetic parametrised tests (fixtures in `agent/tests/fixtures/synthetic_questions.py`)
+- PLAN19: +11 integration tests in `agent/tests/integration/` (LLM/TTS/STT/guardrail live API)
+  - Skip gracefully when real keys absent; run with: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/integration/ -v -s`
+  - Integration conftest captures real keys at module-load (before autouse monkeypatching) + resets guardrail singletons
+  - `pytest-timeout>=2.3.0` added as dev dep; `integration` marker registered in pyproject.toml
 - Playwright 25 E2E tests: `cd frontend && npm run test:e2e` (chromium, reuseExistingServer)
 - Token shape test skips gracefully when LIVEKIT_API_KEY/SECRET absent
 
