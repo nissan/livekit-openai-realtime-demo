@@ -37,18 +37,18 @@ LiveKit Room (WebRTC)
 │   ├─ STT: gpt-4o-transcribe
 │   ├─ TTS: gpt-4o-mini-tts  (voice varies per agent)
 │   ├─ VAD: Silero
-│   └─ Agents: OrchestratorAgent → MathAgent ↔ HistoryAgent
+│   └─ Agents: OrchestratorAgent → MathAgent → OrchestratorAgent → HistoryAgent
 │       (all inherit GuardedAgent → tts_node safety pipeline)
 │
 └─ Realtime Session (learning-english) [dispatched on demand]
-    └─ EnglishAgent: gpt-4o-realtime (native speech-to-speech, ~230ms TTFB)
+    └─ EnglishAgent: gpt-realtime (native speech-to-speech, ~230ms TTFB)
 ```
 
-The pipeline session handles structured pedagogical interactions. The realtime session handles English conversation practice, where the native audio processing of `gpt-4o-realtime` gives a ~230ms time-to-first-byte advantage over the STT→LLM→TTS chain. This two-session design lets us optimise for different quality axes: structured reasoning vs. conversational fluency.
+The pipeline session handles structured pedagogical interactions. The realtime session handles English conversation practice, where the native audio processing of `gpt-realtime` gives a ~230ms time-to-first-byte advantage over the STT→LLM→TTS chain. This two-session design lets us optimise for different quality axes: structured reasoning vs. conversational fluency.
 
 ### The Routing Graph
 
-All four agents can route to each other. The orchestrator classifies intent; specialists handle depth.
+The orchestrator classifies intent and routes to specialists; specialists route back to the orchestrator on completion.
 
 ```
                     ┌─────────────────────┐
@@ -77,7 +77,7 @@ Specialists route back to the orchestrator on completion — the orchestrator th
 | Orchestrator | Claude Haiku 4.5 | Routing classification | Low cost, < 500ms, consistent at temp=0.1 |
 | Math | Claude Sonnet 4.6 | Step-by-step reasoning | Chain-of-thought at scale |
 | History | gpt-5.2 | Factual narrative | Broad knowledge, 400K context |
-| English | gpt-4o-realtime | Speech-to-speech | ~230ms TTFB, native audio, no STT→LLM→TTS hop |
+| English | gpt-realtime | Speech-to-speech | ~230ms TTFB, native audio, no STT→LLM→TTS hop |
 | Guardrail check | omni-moderation-latest | Content safety detection | 13 categories, ~5ms, essentially free |
 | Guardrail rewrite | Claude Haiku 4.5 | Age-appropriate rewrite | Fast, cheap, system prompt controllable |
 
@@ -174,7 +174,7 @@ Six span categories cover the full session lifecycle:
 
 | Span | Key Attributes |
 |---|---|
-| `agent.activated` | `agent_name`, `session_id`, `student_identity` |
+| `agent.activated` | `agent_name`, `langfuse.session_id`, `langfuse.user_id` |
 | `routing.decision` | `from_agent`, `to_agent`, `question_summary`, `decision_ms` |
 | `tts.sentence` | `sentence_length`, `guardrail_ms`, `was_rewritten` |
 | `guardrail.check` | `text_length`, `flagged`, `highest_score`, `check_ms` |
@@ -216,7 +216,7 @@ This is the CheckList approach (Ribeiro et al., 2020): test behavioral propertie
 
 Integration tests are harder to write correctly than unit tests. Three engineering decisions made them reliable:
 
-1. **Key capture at module load time.** `conftest.py` reads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` before autouse monkeypatching can shadow them. Tests that need real API access skip gracefully via `pytest.importorskip` when keys are absent.
+1. **Key capture at module load time.** `conftest.py` reads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` before autouse monkeypatching can shadow them. Tests that need real API access skip gracefully via `pytest.skip()` inside an autouse fixture when keys are absent.
 2. **Singleton reset between tests.** The guardrail module maintains lazy-initialised singletons. Each integration test calls `reset_singletons()` in teardown to prevent state leak.
 3. **`pytest-timeout>=2.3.0`.** A test that hangs against a real API is worse than a test that fails. Every integration test has `@pytest.mark.timeout(30)`.
 
