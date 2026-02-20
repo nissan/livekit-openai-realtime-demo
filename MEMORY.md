@@ -41,7 +41,7 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
   - `GuardedAgent` test instantiation: use `object.__new__(GuardedAgent)` — `session` is a read-only
     property (no setter) so do NOT set it; tts_node handles AttributeError with fallback "unknown"
   - Total: 178 unit + 16 integration = 194 tests (with real keys)
-- Playwright 25 E2E tests: `cd frontend && npm run test:e2e` (chromium, reuseExistingServer)
+- Playwright 66 E2E tests: `cd frontend && npm run test:e2e` (33 test functions × chromium + firefox)
 - Token shape test skips gracefully when LIVEKIT_API_KEY/SECRET absent
 
 ## Python Package Import Gotcha (hatchling + Docker)
@@ -132,7 +132,7 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 - **Blanket approval for**: `docker`, `docker compose`, `docker inspect`, `grep`, `sed` — no need to ask for confirmation, always proceed
 
 ## Key File Locations
-- Plans: PLAN.md–PLAN22.md (root) — PLAN21: LinkedIn article retrospective; PLAN22: reference verification audit
+- Plans: PLAN.md–PLAN23.md (root) — PLAN21: LinkedIn article retrospective; PLAN22: reference verification audit; PLAN23: POC framing + platform evaluation criteria
 - Agent memory (repo copy): MEMORY.md (root) — kept in sync with ~/.claude/projects/.../memory/MEMORY.md
 - Test fixtures: agent/tests/fixtures/synthetic_questions.py (63-item parametrised dataset, PLAN18)
 - Session state: agent/models/session_state.py (SessionUserdata — skip_next_user_turns etc.)

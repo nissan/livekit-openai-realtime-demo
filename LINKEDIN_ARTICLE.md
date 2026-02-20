@@ -387,4 +387,4 @@ The specific SDK version gotchas documented here will age. The LiveKit API will 
 
 *Source code: https://github.com/nissan/livekit-openai-realtime-demo*
 
-*Plans 1–22 are committed to the repository root as `PLAN.md` through `PLAN22.md` — a full audit trail of every architectural decision.*
+*Plans 1–23 are committed to the repository root as `PLAN.md` through `PLAN23.md` — a full audit trail of every architectural decision.*
