@@ -28,7 +28,8 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 - Agent running outside Docker: set `LIVEKIT_URL=ws://localhost:7880` (not `ws://livekit:7880` from .env which only resolves inside Docker)
 
 ## Testing Infrastructure
-- Pytest 72 unit tests: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/ -v`
+- Pytest 171 unit tests: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/ -v`
+- PLAN18: +69 synthetic parametrised tests (fixtures in `agent/tests/fixtures/synthetic_questions.py`)
 - Playwright 25 E2E tests: `cd frontend && npm run test:e2e` (chromium, reuseExistingServer)
 - Token shape test skips gracefully when LIVEKIT_API_KEY/SECRET absent
 
@@ -115,11 +116,14 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 ## User Preferences
 - Git commits frequently with intelligent messages for audit trail
 - Public GitHub repo for all projects
-- **Every plan must be saved as PLAN{N}.md in project root** for architect audit trail — do this as part of every plan implementation (PLAN.md, PLAN2–PLAN16 all present)
+- **Every plan must be saved as PLAN{N}.md in project root** for architect audit trail — do this as part of every plan implementation (PLAN.md, PLAN2–PLAN18 all present)
+- **MEMORY.md is kept in sync in the repo root** for architect audit — update and commit whenever Claude Code memory changes
 - **Blanket approval for**: `docker`, `docker compose`, `docker inspect`, `grep`, `sed` — no need to ask for confirmation, always proceed
 
 ## Key File Locations
-- Plans: PLAN.md–PLAN16.md (root)
+- Plans: PLAN.md–PLAN18.md (root)
+- Agent memory (repo copy): MEMORY.md (root) — kept in sync with ~/.claude/projects/.../memory/MEMORY.md
+- Test fixtures: agent/tests/fixtures/synthetic_questions.py (63-item parametrised dataset, PLAN18)
 - Session state: agent/models/session_state.py (SessionUserdata — skip_next_user_turns etc.)
 - Agent entrypoint: agent/main.py
 - Guardrail: agent/services/guardrail.py
