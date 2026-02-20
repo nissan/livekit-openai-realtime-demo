@@ -81,7 +81,7 @@ best practices alongside concrete engineering lessons learned.
 4. Wang et al. (2024). Mixture-of-Agents. arXiv:2406.04692
 5. Ribeiro et al. (2020). CheckList. arXiv:2005.04118
 6. Skantze (2021). Turn-Taking in Conversational Systems. DOI:10.1016/j.csl.2020.101178
-7. Chen et al. (2023). AgentBench. arXiv:2308.03688
+7. Liu et al. (2024). AgentBench. arXiv:2308.03688
 8. Park et al. (2023). Generative Agents. arXiv:2304.03442
 9. Shen et al. (2023). HuggingGPT. arXiv:2303.17580
 10. Dubey et al. (2024). Llama 3. arXiv:2407.21783
