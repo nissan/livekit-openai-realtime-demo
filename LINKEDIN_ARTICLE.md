@@ -68,7 +68,7 @@ The orchestrator classifies intent and routes to specialists; specialists route 
                   both route back to orchestrator
 ```
 
-Specialists route back to the orchestrator on completion — the orchestrator then re-classifies and dispatches for the next question. This is the Mixture-of-Agents pattern (Wang et al., 2024) applied to voice: route to the model best suited to the domain, not the one that happens to be active.
+Specialists route back to the orchestrator on completion — the orchestrator then re-classifies and dispatches for the next question. This applies the core insight of Mixture-of-Agents (Wang et al., 2024) — use specialised models for specialised tasks — as a sequential routing architecture: one model per domain, selected at dispatch time rather than aggregated in parallel.
 
 ### Model Selection
 
@@ -87,7 +87,7 @@ The routing classification runs at `temperature=0.1`. Non-deterministic routing 
 
 ## The Safety Pipeline
 
-Every sentence that any pipeline agent speaks passes through a three-stage guardrail before reaching the TTS engine. This is the `GuardedAgent` base class:
+Every sentence that any pipeline agent speaks passes through a three-stage guardrail before reaching the TTS engine. The English agent, which uses OpenAI Realtime's native audio pipeline, applies guardrail checking post-hoc via `conversation_item_added` instead — an accepted latency trade-off for the native speech-to-speech path. For the three pipeline agents, this is the `GuardedAgent` base class:
 
 ```python
 class GuardedAgent(Agent):
@@ -279,9 +279,9 @@ Langfuse v3 processes OTEL spans via a BullMQ queue in Redis. Without the `langf
 
 ## Architecture Patterns and Research Context
 
-### Mixture-of-Agents (Wang et al., 2024)
+### Specialist Routing — Inspired by Mixture-of-Agents (Wang et al., 2024)
 
-The routing graph instantiates the Mixture-of-Agents pattern: rather than one large model handling all domains, we route to specialised models selected for cost, latency, and quality in their respective domain. Haiku for fast routing decisions; Sonnet for step-by-step mathematical reasoning; gpt-5.2 for broad historical knowledge.
+Wang et al. (2024) propose a layered architecture where multiple LLM agents process the same query in parallel, each building on previous layers' outputs. This system takes a complementary approach: rather than aggregating parallel outputs, it routes to a single specialised model selected per domain. The motivating insight is the same — one large model need not handle all domains — implemented as sequential dispatch: Haiku for fast routing decisions; Sonnet for step-by-step mathematical reasoning; gpt-5.2 for broad historical knowledge.
 
 ### Intelligent Tutoring Systems (VanLehn, 2011; Bloom, 1984)
 
