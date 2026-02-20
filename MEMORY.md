@@ -4,7 +4,7 @@
 GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 
 ## Architecture
-- 13-service Docker stack: livekit, redis, langfuse-db, langfuse-clickhouse, langfuse-minio(+init), langfuse, **langfuse-worker**, supabase-db, supabase-auth, supabase-kong, supabase-rest, supabase-realtime, supabase-meta, supabase-studio, agent, frontend
+- 18-service Docker stack: livekit, redis, langfuse-db, langfuse-clickhouse, langfuse-minio, langfuse-minio-init, langfuse, **langfuse-worker**, supabase-db, supabase-auth, supabase-kong, supabase-rest, supabase-realtime, supabase-meta, supabase-studio, agent, **agent-english**, frontend
 - Pipeline session (learning-orchestrator): Orchestrator→Math→History agents (all can cross-route)
 - Realtime session (learning-english): separate AgentSession for OpenAI Realtime
 - GuardedAgent base class: tts_node guardrail + on_enter() generate_reply on all pipeline agents
