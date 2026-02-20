@@ -50,7 +50,7 @@ The pipeline session handles structured pedagogical interactions. The realtime s
 
 ### The Routing Graph
 
-The orchestrator classifies intent and routes to specialists; specialists route back to the orchestrator on completion by default, and can also route directly to each other.
+The orchestrator classifies intent and routes to specialists; specialists always route back to the orchestrator on completion.
 
 ```
                     ┌─────────────────────┐
@@ -67,11 +67,10 @@ The orchestrator classifies intent and routes to specialists; specialists route 
              └──────┬─────┘  └──────┬───────┘
                     │               │
                     └───────────────┘
-          both route back to orchestrator by default;
-               peer routing between specialists also supported
+                  both always route back to orchestrator
 ```
 
-Specialists route back to the orchestrator on completion by default — the orchestrator then re-classifies and dispatches for the next question. Specialists can also route directly to each other without returning to the orchestrator first. This applies the core insight of Mixture-of-Agents (Wang et al., 2024) — use specialised models for specialised tasks — as a sequential routing architecture: one model per domain, selected at dispatch time rather than aggregated in parallel.
+Specialists always route back to the orchestrator on completion — the orchestrator then re-classifies and dispatches for the next question. Conversation history is passed to each new agent on construction, so follow-up context is preserved regardless of how many hops have occurred. This applies the core insight of Mixture-of-Agents (Wang et al., 2024) — use specialised models for specialised tasks — as a sequential routing architecture: one model per domain, selected at dispatch time rather than aggregated in parallel.
 
 ### Model Selection
 

@@ -8,7 +8,7 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 - Pipeline session (learning-orchestrator): Orchestrator→Math→History agents (all can cross-route)
 - Realtime session (learning-english): separate AgentSession for OpenAI Realtime
 - GuardedAgent base class: tts_node guardrail + on_enter() generate_reply on all pipeline agents
-- Shared routing: agent/tools/routing.py — specialists can route to each other (not just orchestrator)
+- Shared routing: agent/tools/routing.py — specialists only expose route_back_to_orchestrator + escalate_to_teacher; all cross-subject routing goes orchestrator → specialist (never specialist → specialist directly)
 
 ## Critical SDK Gotchas (LiveKit v1.4)
 - `await silero.VAD.load()` — must be async
