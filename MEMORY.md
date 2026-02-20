@@ -28,12 +28,19 @@ GitHub: https://github.com/nissan/livekit-openai-realtime-demo
 - Agent running outside Docker: set `LIVEKIT_URL=ws://localhost:7880` (not `ws://livekit:7880` from .env which only resolves inside Docker)
 
 ## Testing Infrastructure
-- Pytest 171 unit tests: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/ -v`
+- Pytest 178 unit tests: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/ -v`
 - PLAN18: +69 synthetic parametrised tests (fixtures in `agent/tests/fixtures/synthetic_questions.py`)
 - PLAN19: +11 integration tests in `agent/tests/integration/` (LLM/TTS/STT/guardrail live API)
   - Skip gracefully when real keys absent; run with: `PYTHONPATH=$(pwd) uv run --directory agent pytest tests/integration/ -v -s`
   - Integration conftest captures real keys at module-load (before autouse monkeypatching) + resets guardrail singletons
   - `pytest-timeout>=2.3.0` added as dev dep; `integration` marker registered in pyproject.toml
+- PLAN20: +7 unit tests (3 TestCheck + 4 TestGuardedAgentTtsNode), +5 integration security tests
+  - `agent/tests/test_guardrail_tts_node.py` — tts_node sentence buffering without LiveKit infra
+  - `agent/tests/integration/test_guardrail_security.py` — true-positive harmful content detection
+  - `_make_moderation_response()` now accepts `scores: dict` for per-category score overrides
+  - `GuardedAgent` test instantiation: use `object.__new__(GuardedAgent)` — `session` is a read-only
+    property (no setter) so do NOT set it; tts_node handles AttributeError with fallback "unknown"
+  - Total: 178 unit + 16 integration = 194 tests (with real keys)
 - Playwright 25 E2E tests: `cd frontend && npm run test:e2e` (chromium, reuseExistingServer)
 - Token shape test skips gracefully when LIVEKIT_API_KEY/SECRET absent
 
