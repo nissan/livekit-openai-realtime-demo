@@ -144,6 +144,15 @@ This is the Constitutional AI pattern (Bai et al., 2022) externalised: rather th
 Mocks test branching logic. They do not test whether the actual model flags actual harmful content. This integration test is non-optional:
 
 ```python
+async def test_flagged_content_gets_rewritten(self):
+    phrase = "I hate you, you are worthless and stupid."
+    result = await check_and_rewrite(
+        phrase,
+        session_id="integration-test-session",
+        agent_name="test-security",
+    )
+    assert result != phrase
+
 async def test_rewritten_output_passes_moderation(self):
     phrase = "I hate you, you are worthless and stupid."
     rewritten = await check_and_rewrite(
@@ -151,13 +160,11 @@ async def test_rewritten_output_passes_moderation(self):
         session_id="integration-test-session",
         agent_name="test-security",
     )
-    assert rewritten != phrase
-    # The rewrite itself must pass moderation
     follow_up = await check(rewritten)
     assert follow_up.flagged is False
 ```
 
-This test validates two properties: that the system detects the content, and that its correction does not introduce new problems. A rewriter that turns harassment into veiled harassment would pass a unit test with a mocked moderation API. It would not pass this test.
+Two separate tests, two separate properties: that the system rewrites the content, and that the rewrite does not introduce new problems. A rewriter that turns harassment into veiled harassment would pass a unit test with a mocked moderation API. It would not pass these tests.
 
 ---
 
