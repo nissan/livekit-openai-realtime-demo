@@ -119,3 +119,14 @@ After edits:
 ## Status: COMPLETED
 
 Commit message: `docs: add POC framing and platform evaluation criteria to LinkedIn article`
+
+---
+
+## Addendum: CLAUDE.md created (2026-02-20)
+
+`CLAUDE.md` added to repo root as Claude Code guidance file. Contains:
+- All common commands (agent unit/integration tests, frontend dev/build/lint/E2E, Docker)
+- High-level architecture (two-worker model, agent hierarchy, routing constraints, GuardedAgent tts_node, SessionProvider absence, transcript flow)
+- Critical gotchas distilled from MEMORY.md (Python imports, LiveKit Agents v1.4 API, macOS Docker, transcript speaker attribution, English routing timing, Langfuse v3 requirements)
+
+Commits: `39737ba` (CLAUDE.md), `d126bc3` (MEMORY.md updated to note CLAUDE.md)
